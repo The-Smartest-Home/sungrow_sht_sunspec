@@ -1,5 +1,5 @@
 name: Sungrow SHx SunSpec bridge
-version: "0.3.7"
+version: "0.3.8"
 slug: sungrow_shx_sunspec
 description: Read Sungrow SH-series inverter data over Modbus TCP, expose SunSpec models, and show a live dashboard.
 url: https://github.com/The-Smartest-Home/sungrow_sht_sunspec
@@ -11,9 +11,12 @@ arch:
 startup: services
 boot: auto
 init: false
-host_network: true
 ingress: true
-ingress_port: 0
+ingress_port: 8099
+ports:
+  "5020/tcp": 502
+ports_description:
+  "5020/tcp": SunSpec Modbus TCP host port (default 502; configurable)
 panel_icon: mdi:solar-power-variant
 panel_title: Sungrow SunSpec
 map:
@@ -24,7 +27,6 @@ options:
   inverter_port: 502
   unit_id: 1
   refresh_interval: 5
-  sunspec_port: 5020
   allowed_clients: 127.0.0.1/32,::1/128
   register_map_file: /app/profiles/sh25t_shb.community.json
 schema:
@@ -32,6 +34,5 @@ schema:
   inverter_port: port
   unit_id: int(1,247)
   refresh_interval: int(1,300)
-  sunspec_port: port
   allowed_clients: str
   register_map_file: str

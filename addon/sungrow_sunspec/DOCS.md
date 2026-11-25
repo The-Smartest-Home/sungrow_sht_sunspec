@@ -2,25 +2,26 @@
 
 ## Setup
 
-Configure the inverter host, Modbus TCP port, unit ID, SunSpec port, allowed
-SunSpec client addresses, and register-map file before starting. The bundled
-SH25T/SHB profile is community-derived; validate it against your inverter and
-firmware before relying on its values.
+Configure the inverter host, Modbus TCP port, unit ID, allowed SunSpec client
+addresses, and register-map file before starting. The SunSpec service is
+exposed on host port `502` by default; change the host port in the add-on's
+**Network** settings if desired. The bundled SH25T/SHB profile is
+community-derived; validate it against your inverter and firmware before
+relying on its values.
 
 The add-on exposes:
 
-- The read-only SunSpec Modbus TCP service on port `5020` by default, starting
-  at register `40000`.
+- The read-only SunSpec Modbus TCP service on host port `502` by default,
+  starting at register `40000`. Change the exposed host port in the add-on's
+  **Network** settings to use a different port.
 - The read-only web dashboard through the add-on's **Open Web UI** button.
   Home Assistant ingress handles authentication. It refreshes every five
   seconds and shows inverter power, battery charge, grid flow, model points,
   unavailable values, and the last successful inverter update. Lifetime PV
   generation is shown in kWh; the SunSpec model exposes it in Wh.
 
-The add-on runs its Modbus service as a non-root user and Home Assistant does
-not permit the capability needed to bind ports below `1024`. Keep
-`sunspec_port` at `5020` or choose another unprivileged port; setting it to
-`502` will fail to bind.
+Configure Modbus clients to connect to the Home Assistant host using the
+selected SunSpec host port.
 
 ## Network security
 

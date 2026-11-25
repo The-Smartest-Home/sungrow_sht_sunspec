@@ -23,6 +23,7 @@ from web import DashboardServer, DashboardState
 OPTIONS_PATH = Path(os.environ.get("OPTIONS_PATH", "/data/options.json"))
 LOGGER = logging.getLogger("sungrow_sunspec")
 SUPERVISOR_URL = "http://supervisor/addons/self/info"
+SUNSPEC_PORT = 5020
 
 
 def read_options(path: Path = OPTIONS_PATH) -> dict[str, Any]:
@@ -36,7 +37,6 @@ def read_options(path: Path = OPTIONS_PATH) -> dict[str, Any]:
         "inverter_port": int,
         "unit_id": int,
         "refresh_interval": int,
-        "sunspec_port": int,
         "allowed_clients": str,
         "register_map_file": str,
     }
@@ -149,20 +149,20 @@ async def run() -> None:
         )
 
     ingress_port = get_ingress_port()
-    if ingress_port == options["sunspec_port"]:
-        raise RuntimeError("The allocated ingress port conflicts with sunspec_port")
+    if ingress_port == SUNSPEC_PORT:
+        raise RuntimeError("The allocated ingress port conflicts with the SunSpec listener")
 
     dashboard_state = DashboardState(mappings)
     server = SunSpecServer(
         host="0.0.0.0",
-        port=options["sunspec_port"],
+        port=SUNSPEC_PORT,
         register_map=build_registers(mappings, {}),
         allowed_clients=options["allowed_clients"],
     )
     await server.start()
     LOGGER.info(
         "SunSpec Modbus TCP server listening on port %d (read-only)",
-        options["sunspec_port"],
+        SUNSPEC_PORT,
     )
     dashboard = DashboardServer(
         host="0.0.0.0",

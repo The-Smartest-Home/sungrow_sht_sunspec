@@ -30,15 +30,18 @@ assumptions, implementation requirements, and validation plan.
    repository URL:
    `https://github.com/The-Smartest-Home/sungrow_sht_sunspec`
 2. Install **Sungrow SHx SunSpec bridge**.
-3. Configure the inverter IP, Modbus TCP port/unit ID, SunSpec port
-   (default `5020`), and allowed client IPs/CIDRs, then start the add-on.
+3. Configure the inverter IP, Modbus TCP port/unit ID, and allowed client
+   IPs/CIDRs, then start the add-on. The SunSpec service is exposed on host
+   TCP port `502` by default. Change its host port in the add-on's **Network**
+   settings if you want to expose it on a different port.
 4. By default, the bundled community profile is used. To override it, create
    `register_map.json` in the add-on's configuration directory using the schema
    below, then set `register_map_file` to `/config/register_map.json`.
    Compare the profile with the register map applicable to your firmware and
    verify readings before relying on them.
 5. Select **Open Web UI** in Home Assistant for the authenticated dashboard.
-   Point your SunSpec client at the Home Assistant host on TCP port `5020`,
+   Point your SunSpec client at the Home Assistant host on the configured
+   SunSpec host port (default `502`),
    starting at holding/input register `40000`.
 
 The dashboard uses Home Assistant ingress for authentication and is reachable
@@ -47,9 +50,9 @@ only loopback connections to the SunSpec endpoint; set it to the specific
 client addresses or trusted CIDRs that need access, for example
 `192.168.2.42/32,192.168.2.43/32`. Do not expose the SunSpec endpoint to the
 internet. The inverter's Modbus TCP service must be enabled and reachable from
-the Home Assistant host. The add-on runs as a non-root user and supports
-unprivileged ports only; keep `sunspec_port` at its default `5020` or choose
-another port above `1023`. Port `502` cannot be bound by the add-on.
+the Home Assistant host. Set the exposed host port in the add-on's **Network**
+settings; it defaults to `502`. Configure SunSpec clients to use the selected
+host port.
 
 The dashboard displays lifetime PV energy in kWh for readability. SunSpec
 model 103 exposes the same accumulated energy in Wh, as defined by the model.

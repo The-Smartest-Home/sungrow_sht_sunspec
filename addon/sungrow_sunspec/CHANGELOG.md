@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.8]
+
+- Publish container port 5020 on host port 502 through Home Assistant port
+  forwarding, without requiring an unsupported Linux capability.
+
 ## [0.3.7]
 
 - Remove an unsupported capability declaration so Home Assistant can install
