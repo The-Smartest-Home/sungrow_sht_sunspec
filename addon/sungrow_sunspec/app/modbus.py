@@ -212,7 +212,7 @@ class SunSpecServer:
     def update(self, register_map: dict[int, int]) -> None:
         self.register_map = register_map
 
-    async def _handle_request(self, pdu: bytes) -> bytes:
+    async def _handle_request(self, pdu: bytes, peer: object) -> bytes:
         if not pdu or pdu[0] not in (3, 4):
             return handle_request(pdu, self.register_map)
         if len(pdu) != 5:
@@ -244,6 +244,13 @@ class SunSpecServer:
                     return segment
                 words.extend(struct.unpack(f">{segment_count}H", segment[2:]))
             elif self.upstream_host is not None:
+                LOGGER.info(
+                    "Proxying Modbus read from %s: function=%d address=%d count=%d",
+                    peer,
+                    function,
+                    cursor,
+                    segment_count,
+                )
                 try:
                     async with ModbusClient(
                         self.upstream_host,
@@ -259,7 +266,9 @@ class SunSpecServer:
                         )
                 except (OSError, asyncio.TimeoutError, ValueError) as error:
                     LOGGER.warning(
-                        "Unable to proxy Modbus read at address %d (%d registers): %s",
+                        "Unable to proxy Modbus read from %s at address %d "
+                        "(%d registers): %s",
+                        peer,
                         cursor,
                         segment_count,
                         error,
@@ -296,7 +305,7 @@ class SunSpecServer:
                 pdu = await asyncio.wait_for(
                     reader.readexactly(length - 1), timeout=CLIENT_REQUEST_TIMEOUT
                 )
-                response_pdu = await self._handle_request(pdu)
+                response_pdu = await self._handle_request(pdu, peer)
                 response_header = struct.pack(
                     ">HHHB", transaction, 0, len(response_pdu) + 1, unit
                 )

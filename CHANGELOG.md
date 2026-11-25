@@ -2,6 +2,10 @@
 
 Notable changes to this project are documented here.
 
+## [0.3.13]
+
+- Log the requesting client and register range for forwarded Modbus reads.
+
 ## [0.3.12]
 
 - Replace the comma-separated model selection with individual model checkboxes.

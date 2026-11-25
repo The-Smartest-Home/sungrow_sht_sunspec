@@ -244,12 +244,15 @@ class ModbusRequestTests(unittest.TestCase):
             await proxy.start()
             proxy_port = proxy.server.sockets[0].getsockname()[1]
             try:
-                async with ModbusClient("127.0.0.1", proxy_port, 1) as client:
-                    raw_value = await client.read_registers("input", 13007, 1)
-                    mixed_values = await client.read_registers("holding", 39999, 2)
+                with self.assertLogs("sungrow_sunspec.modbus", level="INFO") as logs:
+                    async with ModbusClient("127.0.0.1", proxy_port, 1) as client:
+                        raw_value = await client.read_registers("input", 13007, 1)
+                        mixed_values = await client.read_registers("holding", 39999, 2)
 
                 self.assertEqual(raw_value, [0x1234])
                 self.assertEqual(mixed_values, [0xABCD, 0x5375])
+                self.assertIn("127.0.0.1", "\n".join(logs.output))
+                self.assertIn("address=13007 count=1", "\n".join(logs.output))
                 self.assertEqual(
                     upstream_requests,
                     [(4, 13007, 1, 7), (3, 39999, 1, 7)],
