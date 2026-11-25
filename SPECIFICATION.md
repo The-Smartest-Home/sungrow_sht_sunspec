@@ -48,6 +48,13 @@ at revision `071f8c8c5f784198928f80de23ae168eed1acd1d`.
    as if they were fresh.
 8. Keep profiles configurable and preserve source attribution. Never represent
    the community profile as official or proven on a specific installation.
+9. Provide a read-only HTTP dashboard for the same live values served over
+   SunSpec. Present inverter power, battery charge, signed grid power, model
+   points, availability, and last successful poll without retaining stale
+   values after a failed poll.
+10. Restrict HTTP and SunSpec clients using the same configurable IP/CIDR
+    allowlist. The default permits loopback only; each listener must reject
+    unauthorized clients and bound idle request time.
 
 ## Initial point mapping
 
@@ -102,8 +109,11 @@ or writable storage controls from unrelated values.
 
 - The SunSpec endpoint is read-only, even for model 124 points defined as
   writable by SunSpec.
-- Do not write to inverter registers; do not enable public exposure of either
-  Modbus endpoint. Restrict network reachability to trusted LAN clients.
+- The dashboard is read-only and uses the same client allowlist as SunSpec.
+- Do not write to inverter registers; do not enable public exposure of the
+  dashboard or SunSpec endpoint. Restrict network reachability to trusted LAN
+  clients. The dashboard uses plain HTTP and is not suitable for public or
+  untrusted networks.
 - A source field can be absent, unsupported, or invalid. Keep it not
   implemented and log actionable upstream errors; never substitute zero.
 - Verify address, register type, signedness, word order, scale, unit, sentinel

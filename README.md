@@ -1,8 +1,11 @@
 # Sungrow SHx SunSpec Home Assistant add-on
 
+[![Add repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FThe-Smartest-Home%2Fsungrow_sht_sunspec)
+
 This repository contains a Home Assistant add-on that reads configured points
-from a Sungrow SH-series inverter over Modbus TCP and serves SunSpec Modbus TCP
-models to other clients. The initial target is an SH25T with SHB storage.
+from a Sungrow SH-series inverter over Modbus TCP, serves SunSpec Modbus TCP
+models, and provides a live web dashboard. The initial target is an SH25T with
+SHB storage.
 
 The add-on provides SunSpec Common (model 1), three-phase inverter (model 103),
 storage (model 124), and three-phase meter (model 203) blocks. The meter's
@@ -28,19 +31,24 @@ assumptions, implementation requirements, and validation plan.
    `https://github.com/The-Smartest-Home/sungrow_sht_sunspec`
 2. Install **Sungrow SHx SunSpec bridge**.
 3. Configure the inverter IP, Modbus TCP port/unit ID, and SunSpec port
-   (default `5020`), then start the add-on.
+   (default `5020`), web dashboard port (default `8080`), and allowed client
+   IPs/CIDRs, then start the add-on.
 4. By default, the bundled community profile is used. To override it, create
    `register_map.json` in the add-on's configuration directory using the schema
    below, then set `register_map_file` to `/config/register_map.json`.
    Compare the profile with the register map applicable to your firmware and
    verify readings before relying on them.
-5. Point your SunSpec client at the Home Assistant host on TCP port `5020`,
-   starting at holding/input register `40000`.
+5. Open `http://<home-assistant-host>:8080` for live inverter, battery, and
+   grid measurements. Point your SunSpec client at the Home Assistant host on
+   TCP port `5020`, starting at holding/input register `40000`.
 
-The endpoint is read-only and binds on the host network. Make sure the chosen
-SunSpec port is not already in use and restrict network access to trusted
-clients. The inverter's Modbus TCP service must be enabled and reachable from
-the Home Assistant host.
+Both services are read-only and bind on the host network. The default
+`allowed_clients` value permits only loopback connections; set it to the
+specific client addresses or trusted CIDRs that need access, for example
+`192.168.2.42/32,192.168.2.43/32`. This allowlist applies to both the
+dashboard and SunSpec. Do not expose either service to the internet. The
+inverter's Modbus TCP service must be enabled and reachable from the Home
+Assistant host.
 
 ## Register-map format
 

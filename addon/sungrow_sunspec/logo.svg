@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="320" viewBox="0 0 800 320">
+  <rect width="800" height="320" rx="32" fill="#102b3f"/>
+  <circle cx="151" cy="104" r="39" fill="#f5b942"/>
+  <path d="m52 195 136-51 103 41-136 53z" fill="#19a7a1"/>
+  <path d="m155 238 136-53v25l-136 54z" fill="#087f82"/>
+  <path d="m52 195 103 43v26L52 221z" fill="#0d8c91"/>
+  <path d="m91 180 103 42m-54-57 103 41m-151-8-1 27m56-47-1 44m54-63-1 43"
+        fill="none" stroke="#d9f3ed" stroke-linecap="round" stroke-width="6"/>
+  <text x="332" y="156" fill="#f5f8fa" font-family="Arial, Helvetica, sans-serif"
+        font-size="54" font-weight="700">Sungrow</text>
+  <text x="335" y="210" fill="#7fd8cd" font-family="Arial, Helvetica, sans-serif"
+        font-size="30" letter-spacing="3">SHx · SunSpec</text>
+</svg>

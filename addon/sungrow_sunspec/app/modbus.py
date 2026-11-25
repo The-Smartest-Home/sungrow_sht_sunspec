@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import struct
 from collections import defaultdict
@@ -10,6 +11,38 @@ from typing import Any
 
 LOGGER = logging.getLogger("sungrow_sunspec.modbus")
 MAX_READ_REGISTERS = 120
+CLIENT_REQUEST_TIMEOUT = 10.0
+
+
+def parse_allowed_clients(value: str) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+    if not isinstance(value, str):
+        raise ValueError("allowed_clients must be a comma-separated string")
+    try:
+        networks = tuple(
+            ipaddress.ip_network(item.strip(), strict=False)
+            for item in value.split(",")
+            if item.strip()
+        )
+    except ValueError as error:
+        raise ValueError(f"Invalid allowed_clients CIDR: {error}") from error
+    if not networks:
+        raise ValueError("allowed_clients must contain at least one IP address or CIDR")
+    return networks
+
+
+def client_is_allowed(
+    peer: object,
+    networks: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
+) -> bool:
+    if not isinstance(peer, (tuple, list)) or not peer or not isinstance(peer[0], str):
+        return False
+    try:
+        address = ipaddress.ip_address(peer[0])
+    except (TypeError, ValueError, IndexError):
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    return any(address in network for network in networks)
 
 
 class ModbusClient:
@@ -126,10 +159,17 @@ def handle_request(pdu: bytes, registers: dict[int, int]) -> bytes:
 
 
 class SunSpecServer:
-    def __init__(self, host: str, port: int, register_map: dict[int, int]):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        register_map: dict[int, int],
+        allowed_clients: str,
+    ):
         self.host = host
         self.port = port
         self.register_map = register_map
+        self.allowed_clients = parse_allowed_clients(allowed_clients)
         self.server: asyncio.AbstractServer | None = None
 
     def update(self, register_map: dict[int, int]) -> None:
@@ -142,14 +182,24 @@ class SunSpecServer:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         peer = writer.get_extra_info("peername")
+        if not client_is_allowed(peer, self.allowed_clients):
+            LOGGER.warning("Rejected unauthorized SunSpec client %s", peer)
+            writer.close()
+            await writer.wait_closed()
+            return
+
         try:
             while True:
-                header = await reader.readexactly(7)
+                header = await asyncio.wait_for(
+                    reader.readexactly(7), timeout=CLIENT_REQUEST_TIMEOUT
+                )
                 transaction, protocol, length, unit = struct.unpack(">HHHB", header)
                 if protocol != 0 or not 2 <= length <= 254:
                     LOGGER.warning("Rejected malformed Modbus request from %s", peer)
                     break
-                pdu = await reader.readexactly(length - 1)
+                pdu = await asyncio.wait_for(
+                    reader.readexactly(length - 1), timeout=CLIENT_REQUEST_TIMEOUT
+                )
                 response_pdu = handle_request(pdu, self.register_map)
                 response_header = struct.pack(
                     ">HHHB", transaction, 0, len(response_pdu) + 1, unit
@@ -158,8 +208,13 @@ class SunSpecServer:
                 await writer.drain()
         except asyncio.IncompleteReadError:
             pass
+        except asyncio.TimeoutError:
+            LOGGER.debug("SunSpec client %s timed out", peer)
         except (ConnectionError, OSError) as error:
             LOGGER.debug("SunSpec client %s disconnected: %s", peer, error)
         finally:
             writer.close()
-            await writer.wait_closed()
+            try:
+                await writer.wait_closed()
+            except (ConnectionError, OSError):
+                pass

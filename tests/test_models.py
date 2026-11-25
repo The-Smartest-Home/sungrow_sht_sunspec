@@ -10,6 +10,7 @@ from models import (
     INVERTER_POINTS,
     METER_POINTS,
     STORAGE_POINTS,
+    build_dashboard_data,
     build_registers,
     load_register_map,
 )
@@ -31,6 +32,45 @@ def empty_map():
 
 
 class RegisterMapTests(unittest.TestCase):
+    def test_dashboard_reports_scaled_mapped_values_and_not_implemented_points(self):
+        mappings = empty_map()
+        mappings["fields"] = {"MTR_W": {}, "ChaState": {}}
+        mappings["scale_factors"] = {"ChaState_SF": -1}
+        data = build_dashboard_data(
+            mappings,
+            {"MTR_W": -325, "ChaState": 61.23},
+            updated_at="2025-01-01T00:00:00+00:00",
+            error=False,
+        )
+        self.assertEqual(data["status"], "online")
+        meter = next(model for model in data["models"] if model["id"] == 203)
+        grid_power = next(point for point in meter["points"] if point["name"] == "MTR_W")
+        self.assertEqual(
+            (grid_power["label"], grid_power["value"], grid_power["unit"], grid_power["available"]),
+            ("Net grid power", -325, "W", True),
+        )
+        storage = next(model for model in data["models"] if model["id"] == 124)
+        battery_charge = next(
+            point for point in storage["points"] if point["name"] == "ChaState"
+        )
+        self.assertEqual(battery_charge["value"], 61.2)
+        self.assertEqual(battery_charge["unit"], "%")
+        self.assertFalse(
+            next(point for point in meter["points"] if point["name"] == "MTR_A")[
+                "available"
+            ]
+        )
+
+    def test_dashboard_marks_points_unavailable_after_poll_error(self):
+        data = build_dashboard_data(
+            empty_map(), {}, updated_at=None, error=True
+        )
+        self.assertEqual(data["status"], "unavailable")
+        meter = next(model for model in data["models"] if model["id"] == 203)
+        self.assertIsNone(
+            next(point for point in meter["points"] if point["name"] == "MTR_W")["value"]
+        )
+
     def test_sunspec_headers_and_model_lengths(self):
         registers = build_registers(empty_map(), {})
         self.assertEqual(registers[40000], 0x5375)

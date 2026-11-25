@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import struct
 import sys
 import unittest
@@ -6,7 +7,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "addon" / "sungrow_sunspec" / "app"))
 
-from modbus import ModbusClient, SunSpecServer, handle_request, read_mapped_fields
+from modbus import (
+    ModbusClient,
+    SunSpecServer,
+    handle_request,
+    parse_allowed_clients,
+    read_mapped_fields,
+)
 
 
 class FakeClient:
@@ -20,6 +27,22 @@ class FakeClient:
 
 
 class ModbusRequestTests(unittest.TestCase):
+    def test_allowed_clients_parse_addresses_and_cidrs(self):
+        networks = parse_allowed_clients("192.168.2.3,192.168.2.0/24")
+        self.assertEqual(len(networks), 2)
+        self.assertIn(ipaddress.ip_address("192.168.2.3"), networks[0])
+        self.assertIn(ipaddress.ip_address("192.168.2.200"), networks[1])
+
+    def test_allowed_clients_support_ipv4_mapped_ipv6_peers(self):
+        networks = parse_allowed_clients("192.168.2.3/32")
+        address = ipaddress.ip_address("::ffff:192.168.2.3")
+        self.assertIn(address.ipv4_mapped, networks[0])
+
+    def test_allowed_clients_reject_empty_or_invalid_values(self):
+        for value in ("", " , ", "not-an-address"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                parse_allowed_clients(value)
+
     def test_read_holding_registers(self):
         response = handle_request(struct.pack(">BHH", 3, 40000, 2), {40000: 0x5375, 40001: 0x6E53})
         self.assertEqual(response, b"\x03\x04\x53\x75\x6e\x53")
@@ -81,13 +104,37 @@ class ModbusRequestTests(unittest.TestCase):
 
     def test_modbus_tcp_server_and_client_interoperate(self):
         async def run_test():
-            server = SunSpecServer("127.0.0.1", 0, {40000: 0x5375, 40001: 0x6E53})
+            server = SunSpecServer(
+                "127.0.0.1",
+                0,
+                {40000: 0x5375, 40001: 0x6E53},
+                "127.0.0.1/32",
+            )
             await server.start()
             port = server.server.sockets[0].getsockname()[1]
             try:
                 async with ModbusClient("127.0.0.1", port, 1) as client:
                     words = await client.read_registers("holding", 40000, 2)
                 self.assertEqual(words, [0x5375, 0x6E53])
+            finally:
+                server.server.close()
+                await server.server.wait_closed()
+
+        asyncio.run(run_test())
+
+    def test_sunspec_server_rejects_clients_outside_allowlist(self):
+        async def run_test():
+            server = SunSpecServer("127.0.0.1", 0, {}, "192.168.2.3/32")
+            await server.start()
+            port = server.server.sockets[0].getsockname()[1]
+            try:
+                reader, writer = await asyncio.open_connection("127.0.0.1", port)
+                try:
+                    with self.assertRaises(asyncio.IncompleteReadError):
+                        await asyncio.wait_for(reader.readexactly(1), timeout=1)
+                finally:
+                    writer.close()
+                    await writer.wait_closed()
             finally:
                 server.server.close()
                 await server.server.wait_closed()
