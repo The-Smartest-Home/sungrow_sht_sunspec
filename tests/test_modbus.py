@@ -202,6 +202,66 @@ class ModbusRequestTests(unittest.TestCase):
 
         asyncio.run(run_test())
 
+    def test_sunspec_server_proxies_non_sunspec_reads_and_mixes_boundary_reads(self):
+        async def run_test():
+            upstream_requests = []
+
+            async def upstream_client(reader, writer):
+                try:
+                    header = await reader.readexactly(7)
+                    transaction, protocol, length, unit = struct.unpack(">HHHB", header)
+                    function, address, count = struct.unpack(
+                        ">BHH", await reader.readexactly(length - 1)
+                    )
+                    upstream_requests.append((function, address, count, unit))
+                    values = [
+                        0xABCD if address + index == 39999 else 0x1234
+                        for index in range(count)
+                    ]
+                    response = bytes((function, count * 2)) + struct.pack(
+                        f">{count}H", *values
+                    )
+                    writer.write(
+                        struct.pack(">HHHB", transaction, protocol, len(response) + 1, unit)
+                        + response
+                    )
+                    await writer.drain()
+                finally:
+                    writer.close()
+                    await writer.wait_closed()
+
+            upstream = await asyncio.start_server(upstream_client, "127.0.0.1", 0)
+            upstream_port = upstream.sockets[0].getsockname()[1]
+            proxy = SunSpecServer(
+                "127.0.0.1",
+                0,
+                {40000: 0x5375, 40001: 0x6E53},
+                "127.0.0.1/32",
+                upstream_host="127.0.0.1",
+                upstream_port=upstream_port,
+                upstream_unit_id=7,
+            )
+            await proxy.start()
+            proxy_port = proxy.server.sockets[0].getsockname()[1]
+            try:
+                async with ModbusClient("127.0.0.1", proxy_port, 1) as client:
+                    raw_value = await client.read_registers("input", 13007, 1)
+                    mixed_values = await client.read_registers("holding", 39999, 2)
+
+                self.assertEqual(raw_value, [0x1234])
+                self.assertEqual(mixed_values, [0xABCD, 0x5375])
+                self.assertEqual(
+                    upstream_requests,
+                    [(4, 13007, 1, 7), (3, 39999, 1, 7)],
+                )
+            finally:
+                proxy.server.close()
+                await proxy.server.wait_closed()
+                upstream.close()
+                await upstream.wait_closed()
+
+        asyncio.run(run_test())
+
     def test_sunspec_server_rejects_clients_outside_allowlist(self):
         async def run_test():
             server = SunSpecServer("127.0.0.1", 0, {}, "192.168.2.3/32")

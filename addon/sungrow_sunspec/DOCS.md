@@ -11,9 +11,13 @@ relying on its values.
 
 The add-on exposes:
 
-- The read-only SunSpec Modbus TCP service on host port `502` by default,
-  starting at register `40000`. Change the exposed host port in the add-on's
-  **Network** settings to use a different port.
+- A read-only Modbus TCP proxy on host port `502` by default. The synthesized
+  SunSpec block starting at register `40000` is served locally; reads outside
+  that block are forwarded to the inverter. For example, Sungrow input register
+  `13007` (load power in the cited community map) can be read directly through
+  this endpoint. It remains a raw vendor register, not a SunSpec point.
+  Change the exposed host port in the add-on's **Network** settings to use a
+  different port.
 - The read-only web dashboard through the add-on's **Open Web UI** button.
   Home Assistant ingress handles authentication. It refreshes every five
   seconds and shows inverter power, battery charge, grid flow, model points,
@@ -21,7 +25,10 @@ The add-on exposes:
   generation is shown in kWh; the SunSpec model exposes it in Wh.
 
 Configure Modbus clients to connect to the Home Assistant host using the
-selected SunSpec host port.
+selected proxy host port and the inverter's configured unit ID. The local
+SunSpec register block takes precedence if a request overlaps its addresses;
+other addresses are read from the inverter. Modbus write requests remain
+rejected.
 
 ## Network security
 

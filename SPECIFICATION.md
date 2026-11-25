@@ -40,6 +40,10 @@ at revision `071f8c8c5f784198928f80de23ae168eed1acd1d`.
    103, storage model 124, three-phase wye meter model 203, then the end marker
    `0xFFFF`, starting at holding register 40000. Keep model IDs, field order,
    field widths and N/I sentinels consistent with SunSpec definitions.
+   On the same read-only Modbus TCP endpoint, serve the local SunSpec block
+   first and proxy reads for all other addresses to the configured inverter.
+   Split reads that cross the local block boundary and combine their values in
+   address order. Reject all writes.
 5. In model 203, preserve signed net grid power: positive means importing from
    grid, negative means exporting. Consumers may compute surplus as
    `max(0, -W)`; do not reverse the value or conflate it with inverter PV
@@ -107,6 +111,12 @@ grid import and negative values for grid export. It marks raw `0x7FFFFFFF` as
 unavailable; this profile maps that value to SunSpec N/I. If the meter is not
 connected or values remain unavailable, model 203 still exists but its `W`
 point is N/I, so a client must not interpret it as zero export.
+
+The raw read-through proxy also makes unmodeled inverter registers available to
+Modbus clients. The cited community map defines input address 13007 (register
+13008 in one-based notation) as signed 32-bit load power and marks
+`0x7FFFFFFF` unavailable. This is passed through unchanged; clients must
+interpret its type, units, and invalid value from the applicable vendor map.
 
 Other fields remain SunSpec not-implemented until a documented source and
 meaning are validated. In particular, do not synthesize AC total current,

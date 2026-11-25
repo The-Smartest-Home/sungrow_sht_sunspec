@@ -158,6 +158,9 @@ async def run() -> None:
         port=SUNSPEC_PORT,
         register_map=build_registers(mappings, {}),
         allowed_clients=options["allowed_clients"],
+        upstream_host=options["inverter_host"],
+        upstream_port=options["inverter_port"],
+        upstream_unit_id=options["unit_id"],
     )
     await server.start()
     LOGGER.info(

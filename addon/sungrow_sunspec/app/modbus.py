@@ -196,15 +196,80 @@ class SunSpecServer:
         port: int,
         register_map: dict[int, int],
         allowed_clients: str,
+        upstream_host: str | None = None,
+        upstream_port: int = 502,
+        upstream_unit_id: int = 1,
     ):
         self.host = host
         self.port = port
         self.register_map = register_map
         self.allowed_clients = parse_allowed_clients(allowed_clients)
+        self.upstream_host = upstream_host
+        self.upstream_port = upstream_port
+        self.upstream_unit_id = upstream_unit_id
         self.server: asyncio.AbstractServer | None = None
 
     def update(self, register_map: dict[int, int]) -> None:
         self.register_map = register_map
+
+    async def _handle_request(self, pdu: bytes) -> bytes:
+        if not pdu or pdu[0] not in (3, 4):
+            return handle_request(pdu, self.register_map)
+        if len(pdu) != 5:
+            return bytes((pdu[0] | 0x80, 3))
+
+        function, address, count = struct.unpack(">BHH", pdu)
+        if not 1 <= count <= 125 or address + count > 65536:
+            return bytes((function | 0x80, 3))
+
+        words: list[int] = []
+        cursor = address
+        end = address + count
+        while cursor < end:
+            is_local = cursor in self.register_map
+            segment_end = cursor + 1
+            while (
+                segment_end < end
+                and (segment_end in self.register_map) == is_local
+            ):
+                segment_end += 1
+
+            segment_count = segment_end - cursor
+            if is_local:
+                segment = handle_request(
+                    struct.pack(">BHH", function, cursor, segment_count),
+                    self.register_map,
+                )
+                if segment[0] & 0x80:
+                    return segment
+                words.extend(struct.unpack(f">{segment_count}H", segment[2:]))
+            elif self.upstream_host is not None:
+                try:
+                    async with ModbusClient(
+                        self.upstream_host,
+                        self.upstream_port,
+                        self.upstream_unit_id,
+                    ) as client:
+                        words.extend(
+                            await client.read_registers(
+                                "holding" if function == 3 else "input",
+                                cursor,
+                                segment_count,
+                            )
+                        )
+                except (OSError, asyncio.TimeoutError, ValueError) as error:
+                    LOGGER.warning(
+                        "Unable to proxy Modbus read at address %d (%d registers): %s",
+                        cursor,
+                        segment_count,
+                        error,
+                    )
+                    return bytes((function | 0x80, 0x0B))
+            else:
+                return bytes((function | 0x80, 2))
+            cursor = segment_end
+
+        return bytes((function, count * 2)) + struct.pack(f">{count}H", *words)
 
     async def start(self) -> None:
         self.server = await asyncio.start_server(self._client_connected, self.host, self.port)
@@ -231,7 +296,7 @@ class SunSpecServer:
                 pdu = await asyncio.wait_for(
                     reader.readexactly(length - 1), timeout=CLIENT_REQUEST_TIMEOUT
                 )
-                response_pdu = handle_request(pdu, self.register_map)
+                response_pdu = await self._handle_request(pdu)
                 response_header = struct.pack(
                     ">HHHB", transaction, 0, len(response_pdu) + 1, unit
                 )
