@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.9]
+
+- Keep the synthesized SunSpec register block local and proxy other read
+  requests to the configured inverter.
+
 ## [0.3.8]
 
 - Publish container port 5020 on host port 502 through Home Assistant port
