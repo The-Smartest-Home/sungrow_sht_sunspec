@@ -7,10 +7,15 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "addon" / "sungrow_sunspec" / "app"))
 
-from web import DashboardServer, DashboardState
+from web import DashboardServer, DashboardState, STYLE
 
 
 class DashboardServerTests(unittest.TestCase):
+    def test_dashboard_styles_allow_point_labels_and_values_to_wrap(self):
+        self.assertIn("grid-template-columns:minmax(0,1fr) auto", STYLE)
+        self.assertIn("overflow-wrap:anywhere", STYLE)
+        self.assertIn("white-space:normal", STYLE)
+
     def test_serves_dashboard_and_live_json_to_allowed_client(self):
         async def run_test():
             state = DashboardState(

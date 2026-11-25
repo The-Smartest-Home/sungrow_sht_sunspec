@@ -172,7 +172,7 @@ MODEL_POINTS = (
 POINT_LABELS = {
     (103, "W"): ("AC active power", "W"),
     (103, "Hz"): ("Grid frequency", "Hz"),
-    (103, "WH"): ("Lifetime energy", "Wh"),
+    (103, "WH"): ("Lifetime PV generation", "kWh"),
     (124, "ChaState"): ("Battery state of charge", "%"),
     (124, "InBatV"): ("Battery voltage", "V"),
     (203, "MTR_W"): ("Net grid power", "W"),
@@ -436,6 +436,8 @@ def build_dashboard_data(
                 if available:
                     exponent = mappings["scale_factors"].get(scale_point, 0)
                     value = round(value / (10**exponent)) * (10**exponent)
+            if model_id == 103 and name == "WH" and available:
+                value = round(value / 1000, 1)
             model_points.append(
                 {
                     "name": name,

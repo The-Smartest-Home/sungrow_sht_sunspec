@@ -14,7 +14,8 @@ The add-on exposes:
 - The read-only web dashboard through the add-on's **Open Web UI** button.
   Home Assistant ingress handles authentication. It refreshes every five
   seconds and shows inverter power, battery charge, grid flow, model points,
-  unavailable values, and the last successful inverter update.
+  unavailable values, and the last successful inverter update. Lifetime PV
+  generation is shown in kWh; the SunSpec model exposes it in Wh.
 
 ## Network security
 

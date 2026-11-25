@@ -49,6 +49,9 @@ client addresses or trusted CIDRs that need access, for example
 internet. The inverter's Modbus TCP service must be enabled and reachable from
 the Home Assistant host.
 
+The dashboard displays lifetime PV energy in kWh for readability. SunSpec
+model 103 exposes the same accumulated energy in Wh, as defined by the model.
+
 ## Register-map format
 
 Addresses are zero-based Modbus PDU addresses, not human-formatted

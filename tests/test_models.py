@@ -71,6 +71,33 @@ class RegisterMapTests(unittest.TestCase):
             next(point for point in meter["points"] if point["name"] == "MTR_W")["value"]
         )
 
+    def test_dashboard_displays_lifetime_energy_in_kwh_but_sunspec_stays_in_wh(self):
+        mappings = empty_map()
+        mappings["fields"] = {"WH": {}}
+        energy_wh = 13_085_500
+
+        data = build_dashboard_data(
+            mappings, {"WH": energy_wh}, updated_at="2025-01-01T00:00:00+00:00", error=False
+        )
+        inverter = next(model for model in data["models"] if model["id"] == 103)
+        energy = next(point for point in inverter["points"] if point["name"] == "WH")
+        self.assertEqual(energy["label"], "Lifetime PV generation")
+        self.assertEqual(energy["value"], 13_085.5)
+        self.assertEqual(energy["unit"], "kWh")
+
+        registers = build_registers(mappings, {"WH": energy_wh})
+        data_start = 40000 + 4 + 66 + 2
+        energy_offset = sum(
+            point[1]
+            for point in INVERTER_POINTS[: next(
+                index for index, point in enumerate(INVERTER_POINTS) if point[0] == "WH"
+            )]
+        )
+        encoded_wh = (registers[data_start + energy_offset] << 16) | registers[
+            data_start + energy_offset + 1
+        ]
+        self.assertEqual(encoded_wh, energy_wh)
+
     def test_sunspec_headers_and_model_lengths(self):
         registers = build_registers(empty_map(), {})
         self.assertEqual(registers[40000], 0x5375)
