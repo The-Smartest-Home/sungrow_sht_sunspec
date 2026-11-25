@@ -26,7 +26,11 @@ at revision `071f8c8c5f784198928f80de23ae168eed1acd1d`.
 ## Functional requirements
 
 1. Connect as a Modbus TCP client using the configured inverter host, port, and
-   unit ID. Poll only configured source registers, at the configured interval.
+   unit ID. Poll configured source registers and attempt to read Common model 1
+   from holding registers starting at 40000, at the configured interval. Use
+   readable Common fields in preference to register-map fallback values;
+   missing fields or an unavailable Common model retain their configured
+   fallback values without interrupting telemetry polling.
 2. Read input registers with function 4 and holding registers with function 3;
    decode signed/unsigned 16/32-bit values and configurable 32-bit word order.
 3. Apply source engineering-unit scale before encoding each SunSpec point.

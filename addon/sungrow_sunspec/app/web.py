@@ -162,11 +162,19 @@ class DashboardState:
     def __init__(self, mappings: dict[str, Any]):
         self.mappings = mappings
         self.source_values: dict[str, int | float] = {}
+        self.common_values: dict[str, str | int] = {}
         self.updated_at: str | None = None
         self.error = False
 
-    def update(self, values: dict[str, int | float], *, error: bool = False) -> None:
+    def update(
+        self,
+        values: dict[str, int | float],
+        *,
+        common_values: dict[str, str | int] | None = None,
+        error: bool = False,
+    ) -> None:
         self.source_values = {} if error else values
+        self.common_values = {} if error else (common_values or {})
         self.error = error
         if not error:
             self.updated_at = datetime.now(timezone.utc).isoformat()
@@ -177,6 +185,7 @@ class DashboardState:
             self.source_values,
             updated_at=self.updated_at,
             error=self.error,
+            common_values=self.common_values,
         )
 
 

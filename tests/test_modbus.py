@@ -13,6 +13,7 @@ from modbus import (
     handle_request,
     parse_allowed_clients,
     read_mapped_fields,
+    read_sunspec_common,
 )
 from models import load_register_map
 
@@ -79,6 +80,53 @@ class ModbusRequestTests(unittest.TestCase):
             values = await read_mapped_fields(client, fields)
             self.assertEqual(values, {"W": -0.1, "WH": 20})
             self.assertEqual(client.calls, [("input", 10, 3)])
+
+        asyncio.run(run_test())
+
+    def test_reads_available_fields_from_sunspec_common_model(self):
+        async def run_test():
+            def encode_string(value, words):
+                raw = value.encode("ascii").ljust(words * 2, b"\x00")
+                return [
+                    (raw[index] << 8) | raw[index + 1]
+                    for index in range(0, len(raw), 2)
+                ]
+
+            data = [0] * 66
+            data[0:16] = encode_string("Live Manufacturer", 16)
+            data[16:32] = encode_string("Live Model", 16)
+            data[64] = 7
+            words = [0x5375, 0x6E53, 1, 66, *data]
+            client = FakeClient()
+            client.registers = {
+                40000 + index: word for index, word in enumerate(words)
+            }
+
+            common = await read_sunspec_common(client)
+
+            self.assertEqual(
+                common,
+                {
+                    "manufacturer": "Live Manufacturer",
+                    "model": "Live Model",
+                    "device_address": 7,
+                },
+            )
+            self.assertEqual(client.calls, [("holding", 40000, 70)])
+
+        asyncio.run(run_test())
+
+    def test_common_model_invalid_header_or_unavailable_values_use_fallbacks(self):
+        async def run_test():
+            client = FakeClient()
+            client.registers = {40000 + index: 0 for index in range(70)}
+            self.assertEqual(await read_sunspec_common(client), {})
+
+            client.registers = {
+                40000 + index: word
+                for index, word in enumerate([0x5375, 0x6E53, 1, 66, *([0xFFFF] * 66)])
+            }
+            self.assertEqual(await read_sunspec_common(client), {})
 
         asyncio.run(run_test())
 

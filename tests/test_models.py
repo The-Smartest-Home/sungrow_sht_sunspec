@@ -71,6 +71,38 @@ class RegisterMapTests(unittest.TestCase):
             next(point for point in meter["points"] if point["name"] == "MTR_W")["value"]
         )
 
+    def test_live_common_values_override_profile_fallbacks_individually(self):
+        mappings = empty_map()
+        common_values = {
+            "manufacturer": "Live Manufacturer",
+            "model": "Live Model",
+            "device_address": 7,
+        }
+        data = build_dashboard_data(
+            mappings,
+            {},
+            updated_at="2025-01-01T00:00:00+00:00",
+            error=False,
+            common_values=common_values,
+        )
+        common_points = {
+            point["label"]: point["value"] for point in data["models"][0]["points"]
+        }
+        self.assertEqual(common_points["Manufacturer"], "Live Manufacturer")
+        self.assertEqual(common_points["Model"], "Live Model")
+        self.assertEqual(common_points["Options"], "SHB")
+        self.assertEqual(common_points["Device address"], 7)
+
+        registers = build_registers(mappings, {}, common_values=common_values)
+        encoded_manufacturer = b"".join(
+            registers[40004 + index].to_bytes(2, "big") for index in range(16)
+        )
+        self.assertEqual(
+            encoded_manufacturer.split(b"\x00", 1)[0].decode("ascii"),
+            "Live Manufacturer",
+        )
+        self.assertEqual(registers[40068], 7)
+
     def test_dashboard_displays_scale_factors_as_readable_multipliers(self):
         mappings = empty_map()
         mappings["scale_factors"] = {"A_SF": -1, "W_SF": 0}

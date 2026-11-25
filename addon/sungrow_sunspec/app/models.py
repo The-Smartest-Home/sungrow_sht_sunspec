@@ -371,11 +371,13 @@ def build_registers(
     mappings: dict[str, Any],
     source_values: dict[str, int | float],
     base_address: int = 40000,
+    common_values: dict[str, str | int] | None = None,
 ) -> dict[int, int]:
     """Build SunSpec Common, three-phase inverter, and storage model registers."""
     data: list[int] = [0x5375, 0x6E53]
     data.extend((1, 66))
     common = mappings["common"]
+    common_values = common_values or {}
     for key, width in (
         ("manufacturer", 16),
         ("model", 16),
@@ -383,8 +385,10 @@ def build_registers(
         ("version", 8),
         ("serial_number", 16),
     ):
-        data.extend(_encode_string(common[key], width))
-    data.extend((common["device_address"] & 0xFFFF, 0))
+        data.extend(_encode_string(str(common_values.get(key, common[key])), width))
+    data.extend(
+        (int(common_values.get("device_address", common["device_address"])) & 0xFFFF, 0)
+    )
 
     for model_id, points in (
         (103, INVERTER_POINTS),
@@ -418,14 +422,22 @@ def build_dashboard_data(
     *,
     updated_at: str | None,
     error: bool,
+    common_values: dict[str, str | int] | None = None,
 ) -> dict[str, Any]:
     common = mappings["common"]
+    common_values = common_values or {}
     models: list[dict[str, Any]] = [
         {
             "id": 1,
             "name": "Common",
             "points": [
-                {"name": label, "label": label, "value": common[key], "unit": "", "available": True}
+                {
+                    "name": label,
+                    "label": label,
+                    "value": common_values.get(key, common[key]),
+                    "unit": "",
+                    "available": True,
+                }
                 for key, label in (
                     ("manufacturer", "Manufacturer"),
                     ("model", "Model"),
@@ -493,7 +505,7 @@ def build_dashboard_data(
             if error
             else (
                 "waiting"
-                if updated_at is None or not mappings["fields"]
+                if updated_at is None or (not mappings["fields"] and not common_values)
                 else "online"
             )
         ),

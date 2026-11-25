@@ -11,7 +11,12 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from modbus import ModbusClient, SunSpecServer, read_mapped_fields
+from modbus import (
+    ModbusClient,
+    SunSpecServer,
+    read_mapped_fields,
+    read_sunspec_common,
+)
 from models import build_registers, load_register_map
 from web import DashboardServer, DashboardState
 
@@ -95,17 +100,31 @@ async def poll_forever(
 ) -> None:
     while True:
         try:
-            if mappings["fields"]:
-                async with ModbusClient(
-                    options["inverter_host"],
-                    options["inverter_port"],
-                    options["unit_id"],
-                ) as client:
-                    values = await read_mapped_fields(client, mappings["fields"])
-            else:
-                values = {}
-            server.update(build_registers(mappings, values))
-            dashboard_state.update(values)
+            async with ModbusClient(
+                options["inverter_host"],
+                options["inverter_port"],
+                options["unit_id"],
+            ) as client:
+                values = (
+                    await read_mapped_fields(client, mappings["fields"])
+                    if mappings["fields"]
+                    else {}
+                )
+                try:
+                    common_values = await read_sunspec_common(client)
+                except (OSError, asyncio.TimeoutError, ValueError) as error:
+                    common_values = {}
+                    LOGGER.debug(
+                        "Inverter SunSpec Common model unavailable; using profile defaults: %s",
+                        error,
+                    )
+                else:
+                    if not common_values:
+                        LOGGER.debug(
+                            "Inverter SunSpec Common model not found; using profile defaults"
+                        )
+            server.update(build_registers(mappings, values, common_values=common_values))
+            dashboard_state.update(values, common_values=common_values)
             LOGGER.info("Updated %d mapped SunSpec points", len(values))
         except (OSError, asyncio.TimeoutError, ValueError) as error:
             server.update(build_registers(mappings, {}))

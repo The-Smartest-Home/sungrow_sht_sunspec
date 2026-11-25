@@ -139,6 +139,37 @@ async def read_mapped_fields(
     return values
 
 
+async def read_sunspec_common(client: ModbusClient) -> dict[str, str | int]:
+    """Read available fields from the inverter's standard Common model at 40000."""
+    registers = await client.read_registers("holding", 40000, 70)
+    if registers[:4] != [0x5375, 0x6E53, 1, 66]:
+        return {}
+
+    common: dict[str, str | int] = {}
+    for name, offset, width in (
+        ("manufacturer", 0, 16),
+        ("model", 16, 16),
+        ("options", 32, 8),
+        ("version", 40, 8),
+        ("serial_number", 48, 16),
+    ):
+        words = registers[4 + offset : 4 + offset + width]
+        if not words or all(word == 0xFFFF for word in words):
+            continue
+        raw = b"".join(word.to_bytes(2, "big") for word in words).split(b"\x00", 1)[0]
+        try:
+            value = raw.decode("ascii").strip()
+        except UnicodeDecodeError:
+            continue
+        if value:
+            common[name] = value
+
+    device_address = registers[68]
+    if device_address != 0xFFFF:
+        common["device_address"] = device_address
+    return common
+
+
 def handle_request(pdu: bytes, registers: dict[int, int]) -> bytes:
     """Handle a Modbus PDU. Writes are rejected to keep inverter controls read-only."""
     if not pdu:

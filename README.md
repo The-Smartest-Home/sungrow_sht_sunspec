@@ -51,6 +51,10 @@ the Home Assistant host.
 
 The dashboard displays lifetime PV energy in kWh for readability. SunSpec
 model 103 exposes the same accumulated energy in Wh, as defined by the model.
+For Common model 1, the bridge also tries to read the inverter's SunSpec block
+from holding registers starting at 40000 on each poll. Any readable fields
+replace the configured Common values; missing fields or an unavailable block
+continue to use the register-map values as fallbacks.
 
 ## Register-map format
 
