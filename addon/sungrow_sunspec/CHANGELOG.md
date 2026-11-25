@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.12]
+
+- Replace the comma-separated model selection with individual model checkboxes.
+
+## [0.3.11]
+
+- Allow selecting which synthesized SunSpec models are exposed.
+
 ## [0.3.10]
 
 - Allow selecting which synthesized SunSpec models are exposed.

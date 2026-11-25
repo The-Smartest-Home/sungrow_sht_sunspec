@@ -30,12 +30,11 @@ SunSpec register block takes precedence if a request overlaps its addresses;
 other addresses are read from the inverter. Modbus write requests remain
 rejected.
 
-The `exposed_models` option controls which synthesized SunSpec models are
-included in the local register chain. Set it to a comma-separated selection of
-`103` (inverter), `124` (storage), and `203` (meter); for example, `103,203`
-exposes the inverter and meter models. Common model 1 is always included.
-Leave the option empty to expose only Common model 1. The default,
-`103,124,203`, preserves the complete model chain.
+Use the **Expose model 103 (Inverter)**, **Expose model 124 (Storage)**, and
+**Expose model 203 (Meter)** checkboxes to select which synthesized SunSpec
+models are included in the local register chain. Common model 1 is always
+included. Clear all three checkboxes to expose only Common model 1; all three
+are enabled by default.
 
 ## Network security
 

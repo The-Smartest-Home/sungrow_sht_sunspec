@@ -1,0 +1,10 @@
+configuration:
+  expose_model_103:
+    name: Expose model 103 (Inverter)
+    description: Include the SunSpec inverter model in the local register chain.
+  expose_model_124:
+    name: Expose model 124 (Storage)
+    description: Include the SunSpec storage model in the local register chain.
+  expose_model_203:
+    name: Expose model 203 (Meter)
+    description: Include the SunSpec meter model in the local register chain.

@@ -243,23 +243,43 @@ SOURCE_TYPES = {
 }
 
 
-def parse_exposed_models(value: str) -> tuple[int, ...]:
-    if not isinstance(value, str):
-        raise ValueError("exposed_models must be a comma-separated string")
-    if not value.strip():
-        return ()
-    try:
-        selected = tuple(int(item.strip()) for item in value.split(","))
-    except ValueError as error:
-        raise ValueError("exposed_models must contain model IDs 103, 124, or 203") from error
-    if (
-        any(model_id not in EXPOSED_SUNSPEC_MODELS for model_id in selected)
-        or len(selected) != len(set(selected))
-    ):
-        raise ValueError(
-            "exposed_models may contain each of 103, 124, and 203 at most once"
+def parse_exposed_models(options: dict[str, Any]) -> tuple[int, ...]:
+    option_names = {
+        103: "expose_model_103",
+        124: "expose_model_124",
+        203: "expose_model_203",
+    }
+    legacy_value = options.get("exposed_models")
+    legacy_selected: set[int] | None = None
+    if legacy_value is not None:
+        if not isinstance(legacy_value, str):
+            raise ValueError("Legacy exposed_models must be a comma-separated string")
+        try:
+            legacy_ids = (
+                [int(item.strip()) for item in legacy_value.split(",") if item.strip()]
+                if legacy_value.strip()
+                else []
+            )
+        except ValueError as error:
+            raise ValueError("Legacy exposed_models contains an invalid model ID") from error
+        if (
+            any(model_id not in EXPOSED_SUNSPEC_MODELS for model_id in legacy_ids)
+            or len(legacy_ids) != len(set(legacy_ids))
+        ):
+            raise ValueError("Legacy exposed_models contains unsupported or duplicate model IDs")
+        legacy_selected = set(legacy_ids)
+
+    selected = []
+    for model_id, option_name in option_names.items():
+        value = options.get(
+            option_name,
+            model_id in legacy_selected if legacy_selected is not None else True,
         )
-    return tuple(model_id for model_id in EXPOSED_SUNSPEC_MODELS if model_id in selected)
+        if type(value) is not bool:
+            raise ValueError(f"{option_name} must be a boolean")
+        if value:
+            selected.append(model_id)
+    return tuple(selected)
 
 
 def load_register_map(path: Path) -> dict[str, Any]:

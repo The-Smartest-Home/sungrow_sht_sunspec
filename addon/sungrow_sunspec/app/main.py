@@ -48,9 +48,7 @@ def read_options(path: Path = OPTIONS_PATH) -> dict[str, Any]:
             expected_type is str and not value.strip()
         ):
             raise ValueError(f"Invalid or missing add-on option: {key}")
-    options["exposed_models"] = parse_exposed_models(
-        options.get("exposed_models", "103,124,203")
-    )
+    options["exposed_models"] = parse_exposed_models(options)
     return options
 
 

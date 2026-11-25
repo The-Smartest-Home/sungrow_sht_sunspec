@@ -70,7 +70,7 @@ class RegisterMapPathTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "inverter_port"):
                 read_options(options_file)
 
-    def test_read_options_defaults_and_parses_exposed_models(self):
+    def test_read_options_defaults_and_parses_model_checkboxes(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             options_file = Path(temporary_directory) / "options.json"
             options_file.write_text(
@@ -87,6 +87,31 @@ class RegisterMapPathTests(unittest.TestCase):
                 '"unit_id":1,"refresh_interval":5,'
                 '"allowed_clients":"127.0.0.1/32",'
                 '"register_map_file":"/app/profiles/default.json",'
+                '"expose_model_103":true,"expose_model_124":false,'
+                '"expose_model_203":true}',
+                encoding="utf-8",
+            )
+            self.assertEqual(read_options(options_file)["exposed_models"], (103, 203))
+
+            options_file.write_text(
+                '{"inverter_host":"inverter.local","inverter_port":502,'
+                '"unit_id":1,"refresh_interval":5,'
+                '"allowed_clients":"127.0.0.1/32",'
+                '"register_map_file":"/app/profiles/default.json",'
+                '"expose_model_103":false,"expose_model_124":false,'
+                '"expose_model_203":false}',
+                encoding="utf-8",
+            )
+            self.assertEqual(read_options(options_file)["exposed_models"], ())
+
+    def test_read_options_migrates_legacy_model_selection(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            options_file = Path(temporary_directory) / "options.json"
+            options_file.write_text(
+                '{"inverter_host":"inverter.local","inverter_port":502,'
+                '"unit_id":1,"refresh_interval":5,'
+                '"allowed_clients":"127.0.0.1/32",'
+                '"register_map_file":"/app/profiles/default.json",'
                 '"exposed_models":"203,103"}',
                 encoding="utf-8",
             )
@@ -97,12 +122,26 @@ class RegisterMapPathTests(unittest.TestCase):
                 '"unit_id":1,"refresh_interval":5,'
                 '"allowed_clients":"127.0.0.1/32",'
                 '"register_map_file":"/app/profiles/default.json",'
-                '"exposed_models":""}',
+                '"exposed_models":"124","expose_model_203":true}',
                 encoding="utf-8",
             )
-            self.assertEqual(read_options(options_file)["exposed_models"], ())
+            self.assertEqual(read_options(options_file)["exposed_models"], (124, 203))
 
-    def test_read_options_rejects_unknown_exposed_models(self):
+    def test_read_options_rejects_non_boolean_model_checkbox(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            options_file = Path(temporary_directory) / "options.json"
+            options_file.write_text(
+                '{"inverter_host":"inverter.local","inverter_port":502,'
+                '"unit_id":1,"refresh_interval":5,'
+                '"allowed_clients":"127.0.0.1/32",'
+                '"register_map_file":"/app/profiles/default.json",'
+                '"expose_model_103":"true"}',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "expose_model_103"):
+                read_options(options_file)
+
+    def test_read_options_rejects_invalid_legacy_model_selection(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             options_file = Path(temporary_directory) / "options.json"
             options_file.write_text(
@@ -113,7 +152,7 @@ class RegisterMapPathTests(unittest.TestCase):
                 '"exposed_models":"103,999"}',
                 encoding="utf-8",
             )
-            with self.assertRaisesRegex(ValueError, "exposed_models"):
+            with self.assertRaisesRegex(ValueError, "Legacy exposed_models"):
                 read_options(options_file)
 
     @patch("main.urllib.request.urlopen")
