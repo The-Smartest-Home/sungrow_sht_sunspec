@@ -2,6 +2,10 @@
 
 Notable changes to this project are documented here.
 
+## [0.3.4]
+
+- Display SunSpec scale factors as readable multipliers with descriptive labels.
+
 ## [0.3.3]
 
 - Refresh the add-on icon and logo with a cleaner, consistent visual design.

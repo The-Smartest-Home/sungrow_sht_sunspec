@@ -71,6 +71,31 @@ class RegisterMapTests(unittest.TestCase):
             next(point for point in meter["points"] if point["name"] == "MTR_W")["value"]
         )
 
+    def test_dashboard_displays_scale_factors_as_readable_multipliers(self):
+        mappings = empty_map()
+        mappings["scale_factors"] = {"A_SF": -1, "W_SF": 0}
+        data = build_dashboard_data(
+            mappings, {}, updated_at=None, error=False
+        )
+        inverter = next(model for model in data["models"] if model["id"] == 103)
+        points = {point["name"]: point for point in inverter["points"]}
+        self.assertEqual(
+            (
+                points["A_SF"]["label"],
+                points["A_SF"]["value"],
+                points["A_SF"]["unit"],
+            ),
+            ("Current scale multiplier", "×0.1", ""),
+        )
+        self.assertEqual(
+            (
+                points["W_SF"]["label"],
+                points["W_SF"]["value"],
+                points["W_SF"]["unit"],
+            ),
+            ("Active power scale multiplier", "×1", ""),
+        )
+
     def test_dashboard_displays_lifetime_energy_in_kwh_but_sunspec_stays_in_wh(self):
         mappings = empty_map()
         mappings["fields"] = {"WH": {}}

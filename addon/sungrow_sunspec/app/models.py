@@ -182,6 +182,38 @@ POINT_LABELS = {
     (203, "MTR_TotWhImp"): ("Total grid import", "kWh"),
     (203, "MTR_TotWhExp"): ("Total grid export", "kWh"),
 }
+SCALE_FACTOR_LABELS = {
+    (103, "A_SF"): "Current scale multiplier",
+    (103, "V_SF"): "Voltage scale multiplier",
+    (103, "W_SF"): "Active power scale multiplier",
+    (103, "Hz_SF"): "Frequency scale multiplier",
+    (103, "VA_SF"): "Apparent power scale multiplier",
+    (103, "VAr_SF"): "Reactive power scale multiplier",
+    (103, "PF_SF"): "Power factor scale multiplier",
+    (103, "WH_SF"): "Energy scale multiplier",
+    (103, "DCA_SF"): "DC current scale multiplier",
+    (103, "DCV_SF"): "DC voltage scale multiplier",
+    (103, "DCW_SF"): "DC power scale multiplier",
+    (103, "Tmp_SF"): "Temperature scale multiplier",
+    (124, "WChaMax_SF"): "Charge power scale multiplier",
+    (124, "WChaDisChaGra_SF"): "Charge/discharge power scale multiplier",
+    (124, "VAChaMax_SF"): "Apparent power scale multiplier",
+    (124, "MinRsvPct_SF"): "Reserve percentage scale multiplier",
+    (124, "ChaState_SF"): "Battery charge scale multiplier",
+    (124, "StorAval_SF"): "Available storage scale multiplier",
+    (124, "InBatV_SF"): "Battery voltage scale multiplier",
+    (124, "InOutWRte_SF"): "Charge/discharge rate scale multiplier",
+    (203, "MTR_A_SF"): "Grid current scale multiplier",
+    (203, "MTR_V_SF"): "Grid voltage scale multiplier",
+    (203, "MTR_Hz_SF"): "Grid frequency scale multiplier",
+    (203, "MTR_W_SF"): "Grid power scale multiplier",
+    (203, "MTR_VA_SF"): "Apparent grid power scale multiplier",
+    (203, "MTR_VAR_SF"): "Reactive grid power scale multiplier",
+    (203, "MTR_PF_SF"): "Grid power factor scale multiplier",
+    (203, "MTR_TotWh_SF"): "Grid energy scale multiplier",
+    (203, "MTR_TotVAh_SF"): "Apparent grid energy scale multiplier",
+    (203, "MTR_TotVArh_SF"): "Reactive grid energy scale multiplier",
+}
 POINT_UNITS = {
     "A": "A",
     "VA": "VA",
@@ -431,7 +463,9 @@ def build_dashboard_data(
                     "",
                 )
             if is_scale_factor:
-                label, unit = f"{name} scale factor", "10^x"
+                label = SCALE_FACTOR_LABELS.get((model_id, name), "Scale multiplier")
+                value = f"×{10**value:g}"
+                unit = ""
             elif scale_point is not None:
                 if not unit:
                     unit = "engineering units"
