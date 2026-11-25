@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "profile_status": "community-derived; unverified on this installation",
+  "profile_source": "Sungrow-SHx-Inverter-Modbus-Home-Assistant by mkaiser (MIT)",
+  "profile_source_url": "https://github.com/mkaiser/Sungrow-SHx-Inverter-Modbus-Home-Assistant",
+  "profile_source_revision": "071f8c8c5f784198928f80de23ae168eed1acd1d",
+  "profile_source_file": "modbus_sungrow.yaml",
+  "profile_note": "The cited community map recognizes SH25T and has SH*T-specific MPPT points. Verify this shared SHx register profile against the exact SH25T, SHB, and firmware before relying on its readings. The source labels register 5033 Reactive power but declares unit W; the SunSpec VAr interpretation is provisional.",
+  "manufacturer": "Sungrow",
+  "model": "SH25T",
+  "options": "SHB",
+  "version_string": "",
+  "serial_number": "",
+  "device_address": 1,
+  "scale_factors": {
+    "A_SF": -1,
+    "V_SF": -1,
+    "W_SF": 0,
+    "Hz_SF": -2,
+    "VAr_SF": 0,
+    "PF_SF": -2,
+    "WH_SF": 0,
+    "DCW_SF": 0,
+    "Tmp_SF": -1,
+    "ChaState_SF": -1,
+    "InBatV_SF": -1,
+    "MTR_A_SF": -2,
+    "MTR_V_SF": -1,
+    "MTR_Hz_SF": -2,
+    "MTR_W_SF": 0,
+    "MTR_VA_SF": 0,
+    "MTR_VAR_SF": 0,
+    "MTR_PF_SF": -2,
+    "MTR_TotWh_SF": 0,
+    "MTR_TotVAh_SF": 0,
+    "MTR_TotVArh_SF": 0
+  },
+  "fields": {
+    "PhVphA": {
+      "register_type": "input",
+      "address": 5018,
+      "data_type": "uint16",
+      "scale": 0.1
+    },
+    "PhVphB": {
+      "register_type": "input",
+      "address": 5019,
+      "data_type": "uint16",
+      "scale": 0.1
+    },
+    "PhVphC": {
+      "register_type": "input",
+      "address": 5020,
+      "data_type": "uint16",
+      "scale": 0.1
+    },
+    "VAr": {
+      "register_type": "input",
+      "address": 5032,
+      "data_type": "int32",
+      "scale": 1,
+      "word_order": "swap"
+    },
+    "PF": {
+      "register_type": "input",
+      "address": 5034,
+      "data_type": "int16",
+      "scale": 0.1
+    },
+    "DCW": {
+      "register_type": "input",
+      "address": 5016,
+      "data_type": "uint32",
+      "scale": 1,
+      "word_order": "swap"
+    },
+    "Hz": {
+      "register_type": "input",
+      "address": 5241,
+      "data_type": "uint16",
+      "scale": 0.01
+    },
+    "TmpSnk": {
+      "register_type": "input",
+      "address": 5007,
+      "data_type": "int16",
+      "scale": 0.1
+    },
+    "WH": {
+      "register_type": "input",
+      "address": 13002,
+      "data_type": "uint32",
+      "scale": 100,
+      "word_order": "swap"
+    },
+    "InBatV": {
+      "register_type": "input",
+      "address": 13019,
+      "data_type": "uint16",
+      "scale": 0.1
+    },
+    "ChaState": {
+      "register_type": "input",
+      "address": 13022,
+      "data_type": "uint16",
+      "scale": 0.1
+    },
+    "AphA": {
+      "register_type": "input",
+      "address": 13030,
+      "data_type": "int16",
+      "scale": 0.1
+    },
+    "AphB": {
+      "register_type": "input",
+      "address": 13031,
+      "data_type": "int16",
+      "scale": 0.1
+    },
+    "AphC": {
+      "register_type": "input",
+      "address": 13032,
+      "data_type": "int16",
+      "scale": 0.1
+    },
+    "W": {
+      "register_type": "input",
+      "address": 13033,
+      "data_type": "int32",
+      "scale": 1,
+      "word_order": "swap"
+    },
+    "StVnd": {
+      "register_type": "input",
+      "address": 12999,
+      "data_type": "uint16",
+      "scale": 1
+    },
+    "MTR_W": {
+      "register_type": "input",
+      "address": 5600,
+      "data_type": "int32",
+      "scale": 1,
+      "word_order": "swap",
+      "invalid_values": [2147483647]
+    },
+    "MTR_WphA": {
+      "register_type": "input",
+      "address": 5602,
+      "data_type": "int32",
+      "scale": 1,
+      "word_order": "swap",
+      "invalid_values": [2147483647]
+    },
+    "MTR_WphB": {
+      "register_type": "input",
+      "address": 5604,
+      "data_type": "int32",
+      "scale": 1,
+      "word_order": "swap",
+      "invalid_values": [2147483647]
+    },
+    "MTR_WphC": {
+      "register_type": "input",
+      "address": 5606,
+      "data_type": "int32",
+      "scale": 1,
+      "word_order": "swap",
+      "invalid_values": [2147483647]
+    }
+  }
+}
