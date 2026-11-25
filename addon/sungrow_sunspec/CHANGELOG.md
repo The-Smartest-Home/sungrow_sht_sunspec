@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.14]
+
+- Make forwarded-read requester details configurable with Debug logging.
+- Relay upstream Modbus exception responses to clients without warning-log spam.
+
 ## [0.3.13]
 
 - Log the requesting client and register range for forwarded Modbus reads.

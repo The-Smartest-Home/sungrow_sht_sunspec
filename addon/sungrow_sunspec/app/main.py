@@ -48,6 +48,10 @@ def read_options(path: Path = OPTIONS_PATH) -> dict[str, Any]:
             expected_type is str and not value.strip()
         ):
             raise ValueError(f"Invalid or missing add-on option: {key}")
+    debug_logging = options.get("debug_logging", False)
+    if type(debug_logging) is not bool:
+        raise ValueError("debug_logging must be a boolean")
+    options["debug_logging"] = debug_logging
     options["exposed_models"] = parse_exposed_models(options)
     return options
 
@@ -146,11 +150,15 @@ async def poll_forever(
 
 
 async def run() -> None:
+    options = read_options()
     logging.basicConfig(
-        level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        level=(
+            logging.DEBUG
+            if options["debug_logging"]
+            else os.getenv("LOG_LEVEL", "INFO").upper()
+        ),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    options = read_options()
     map_path = resolve_register_map_path(options["register_map_file"])
     mappings = load_register_map(map_path)
     if not mappings["fields"]:
@@ -175,6 +183,7 @@ async def run() -> None:
         upstream_host=options["inverter_host"],
         upstream_port=options["inverter_port"],
         upstream_unit_id=options["unit_id"],
+        debug_logging=options["debug_logging"],
     )
     await server.start()
     LOGGER.info(

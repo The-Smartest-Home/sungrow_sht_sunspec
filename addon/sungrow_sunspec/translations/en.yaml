@@ -8,3 +8,6 @@ configuration:
   expose_model_203:
     name: Expose model 203 (Meter)
     description: Include the SunSpec meter model in the local register chain.
+  debug_logging:
+    name: Debug logging
+    description: Log client addresses and details for reads forwarded to the inverter.

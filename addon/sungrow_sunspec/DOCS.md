@@ -68,9 +68,11 @@ and third-party license information are recorded in
   Home Assistant host.
 - If SunSpec clients cannot connect, check `allowed_clients`, the selected
   port, and firewall rules on the Home Assistant host and LAN.
-- Forwarded Modbus reads are logged at INFO with the client IP/port, function
-  code, address, and register count. Upstream read failures include the same
-  client details at WARNING level.
+- Enable **Debug logging** to log client IP/port and details for forwarded
+  reads, including upstream Modbus exception responses. Upstream connection,
+  timeout, or protocol failures are logged at WARNING regardless of this
+  setting. Modbus exception responses from the inverter are relayed to the
+  client unchanged, rather than logged as proxy failures.
 - If values show as unavailable, inspect the add-on log and verify that the
   configured profile matches the inverter and meter installation.
 

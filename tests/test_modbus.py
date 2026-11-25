@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "addon" / "sungrow_sunspec" /
 
 from modbus import (
     ModbusClient,
+    ModbusExceptionError,
     SunSpecServer,
     handle_request,
     parse_allowed_clients,
@@ -240,11 +241,12 @@ class ModbusRequestTests(unittest.TestCase):
                 upstream_host="127.0.0.1",
                 upstream_port=upstream_port,
                 upstream_unit_id=7,
+                debug_logging=True,
             )
             await proxy.start()
             proxy_port = proxy.server.sockets[0].getsockname()[1]
             try:
-                with self.assertLogs("sungrow_sunspec.modbus", level="INFO") as logs:
+                with self.assertLogs("sungrow_sunspec.modbus", level="DEBUG") as logs:
                     async with ModbusClient("127.0.0.1", proxy_port, 1) as client:
                         raw_value = await client.read_registers("input", 13007, 1)
                         mixed_values = await client.read_registers("holding", 39999, 2)
@@ -257,6 +259,49 @@ class ModbusRequestTests(unittest.TestCase):
                     upstream_requests,
                     [(4, 13007, 1, 7), (3, 39999, 1, 7)],
                 )
+            finally:
+                proxy.server.close()
+                await proxy.server.wait_closed()
+                upstream.close()
+                await upstream.wait_closed()
+
+        asyncio.run(run_test())
+
+    def test_upstream_modbus_exception_is_relayed_without_warning(self):
+        async def run_test():
+            async def upstream_client(reader, writer):
+                try:
+                    header = await reader.readexactly(7)
+                    transaction, protocol, length, unit = struct.unpack(">HHHB", header)
+                    function = (await reader.readexactly(length - 1))[0]
+                    response = bytes((function | 0x80, 4))
+                    writer.write(
+                        struct.pack(">HHHB", transaction, protocol, len(response) + 1, unit)
+                        + response
+                    )
+                    await writer.drain()
+                finally:
+                    writer.close()
+                    await writer.wait_closed()
+
+            upstream = await asyncio.start_server(upstream_client, "127.0.0.1", 0)
+            upstream_port = upstream.sockets[0].getsockname()[1]
+            proxy = SunSpecServer(
+                "127.0.0.1",
+                0,
+                {},
+                "127.0.0.1/32",
+                upstream_host="127.0.0.1",
+                upstream_port=upstream_port,
+            )
+            await proxy.start()
+            proxy_port = proxy.server.sockets[0].getsockname()[1]
+            try:
+                with self.assertNoLogs("sungrow_sunspec.modbus", level="WARNING"):
+                    async with ModbusClient("127.0.0.1", proxy_port, 1) as client:
+                        with self.assertRaises(ModbusExceptionError) as error:
+                            await client.read_registers("input", 0, 1)
+                self.assertEqual(error.exception.exception_code, 4)
             finally:
                 proxy.server.close()
                 await proxy.server.wait_closed()

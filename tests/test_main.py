@@ -81,6 +81,7 @@ class RegisterMapPathTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(read_options(options_file)["exposed_models"], (103, 124, 203))
+            self.assertFalse(read_options(options_file)["debug_logging"])
 
             options_file.write_text(
                 '{"inverter_host":"inverter.local","inverter_port":502,'
@@ -139,6 +140,20 @@ class RegisterMapPathTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(ValueError, "expose_model_103"):
+                read_options(options_file)
+
+    def test_read_options_rejects_non_boolean_debug_logging(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            options_file = Path(temporary_directory) / "options.json"
+            options_file.write_text(
+                '{"inverter_host":"inverter.local","inverter_port":502,'
+                '"unit_id":1,"refresh_interval":5,'
+                '"allowed_clients":"127.0.0.1/32",'
+                '"register_map_file":"/app/profiles/default.json",'
+                '"debug_logging":"true"}',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "debug_logging"):
                 read_options(options_file)
 
     def test_read_options_rejects_invalid_legacy_model_selection(self):

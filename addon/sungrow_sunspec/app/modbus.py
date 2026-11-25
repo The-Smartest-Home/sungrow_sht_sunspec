@@ -14,6 +14,12 @@ MAX_READ_REGISTERS = 120
 CLIENT_REQUEST_TIMEOUT = 10.0
 
 
+class ModbusExceptionError(OSError):
+    def __init__(self, exception_code: int):
+        self.exception_code = exception_code
+        super().__init__(f"Upstream inverter returned Modbus exception {exception_code}")
+
+
 def parse_allowed_clients(value: str) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
     if not isinstance(value, str):
         raise ValueError("allowed_clients must be a comma-separated string")
@@ -92,7 +98,9 @@ class ModbusClient:
             self.reader.readexactly(length - 1), timeout=self.timeout
         )
         if response[0] == (function | 0x80):
-            raise OSError(f"Upstream inverter returned Modbus exception {response[1]}")
+            if len(response) != 2:
+                raise ValueError("Invalid upstream Modbus exception response")
+            raise ModbusExceptionError(response[1])
         if response[0] != function or response[1] != count * 2 or len(response) != count * 2 + 2:
             raise ValueError("Invalid Modbus register response")
         return list(struct.unpack(f">{count}H", response[2:]))
@@ -199,6 +207,7 @@ class SunSpecServer:
         upstream_host: str | None = None,
         upstream_port: int = 502,
         upstream_unit_id: int = 1,
+        debug_logging: bool = False,
     ):
         self.host = host
         self.port = port
@@ -207,6 +216,7 @@ class SunSpecServer:
         self.upstream_host = upstream_host
         self.upstream_port = upstream_port
         self.upstream_unit_id = upstream_unit_id
+        self.debug_logging = debug_logging
         self.server: asyncio.AbstractServer | None = None
 
     def update(self, register_map: dict[int, int]) -> None:
@@ -244,13 +254,14 @@ class SunSpecServer:
                     return segment
                 words.extend(struct.unpack(f">{segment_count}H", segment[2:]))
             elif self.upstream_host is not None:
-                LOGGER.info(
-                    "Proxying Modbus read from %s: function=%d address=%d count=%d",
-                    peer,
-                    function,
-                    cursor,
-                    segment_count,
-                )
+                if self.debug_logging:
+                    LOGGER.debug(
+                        "Proxying Modbus read from %s: function=%d address=%d count=%d",
+                        peer,
+                        function,
+                        cursor,
+                        segment_count,
+                    )
                 try:
                     async with ModbusClient(
                         self.upstream_host,
@@ -264,6 +275,17 @@ class SunSpecServer:
                                 segment_count,
                             )
                         )
+                except ModbusExceptionError as error:
+                        if self.debug_logging:
+                            LOGGER.debug(
+                                "Upstream rejected Modbus read from %s at address %d "
+                                "(%d registers): exception %d",
+                                peer,
+                                cursor,
+                                segment_count,
+                                error.exception_code,
+                            )
+                        return bytes((function | 0x80, error.exception_code))
                 except (OSError, asyncio.TimeoutError, ValueError) as error:
                     LOGGER.warning(
                         "Unable to proxy Modbus read from %s at address %d "
