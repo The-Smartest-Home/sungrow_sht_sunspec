@@ -167,6 +167,20 @@
       "scale": 1,
       "word_order": "swap",
       "invalid_values": [2147483647]
+    },
+    "MTR_TotWhImp": {
+      "register_type": "input",
+      "address": 13036,
+      "data_type": "uint32",
+      "scale": 100,
+      "word_order": "swap"
+    },
+    "MTR_TotWhExp": {
+      "register_type": "input",
+      "address": 13045,
+      "data_type": "uint32",
+      "scale": 100,
+      "word_order": "swap"
     }
   }
 }

@@ -87,6 +87,8 @@ the target SunSpec engineering unit.
 | 203 `WphA` | Meter phase A active power | 5602 | int32, swap | 1 W | 0 |
 | 203 `WphB` | Meter phase B active power | 5604 | int32, swap | 1 W | 0 |
 | 203 `WphC` | Meter phase C active power | 5606 | int32, swap | 1 W | 0 |
+| 203 `TotWhImp` | Total grid import energy | 13036 | uint32, swap | 100 Wh/raw | 0 |
+| 203 `TotWhExp` | Total grid export energy | 13045 | uint32, swap | 100 Wh/raw | 0 |
 
 The `WH` source is the upstream lifetime PV generation counter; it is not
 asserted to be an exact inverter AC output-energy counter. `TmpSnk` is a proxy

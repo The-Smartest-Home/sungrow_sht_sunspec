@@ -14,6 +14,7 @@ from modbus import (
     parse_allowed_clients,
     read_mapped_fields,
 )
+from models import load_register_map
 
 
 class FakeClient:
@@ -78,6 +79,37 @@ class ModbusRequestTests(unittest.TestCase):
             values = await read_mapped_fields(client, fields)
             self.assertEqual(values, {"W": -0.1, "WH": 20})
             self.assertEqual(client.calls, [("input", 10, 3)])
+
+        asyncio.run(run_test())
+
+    def test_profile_decodes_total_grid_energy_from_word_swapped_counters(self):
+        async def run_test():
+            client = FakeClient()
+            client.registers = {
+                13036: 12345,
+                13037: 0,
+                13045: 9876,
+                13046: 0,
+            }
+            profile_path = (
+                Path(__file__).parents[1]
+                / "addon"
+                / "sungrow_sunspec"
+                / "profiles"
+                / "sh25t_shb.community.json"
+            )
+            fields = load_register_map(profile_path)["fields"]
+            values = await read_mapped_fields(
+                client,
+                {
+                    name: fields[name]
+                    for name in ("MTR_TotWhImp", "MTR_TotWhExp")
+                },
+            )
+            self.assertEqual(
+                values,
+                {"MTR_TotWhImp": 1_234_500, "MTR_TotWhExp": 987_600},
+            )
 
         asyncio.run(run_test())
 

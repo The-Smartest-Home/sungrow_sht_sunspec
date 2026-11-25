@@ -179,6 +179,8 @@ POINT_LABELS = {
     (203, "MTR_WphA"): ("Grid power phase A", "W"),
     (203, "MTR_WphB"): ("Grid power phase B", "W"),
     (203, "MTR_WphC"): ("Grid power phase C", "W"),
+    (203, "MTR_TotWhImp"): ("Total grid import", "kWh"),
+    (203, "MTR_TotWhExp"): ("Total grid export", "kWh"),
 }
 POINT_UNITS = {
     "A": "A",
@@ -437,6 +439,8 @@ def build_dashboard_data(
                     exponent = mappings["scale_factors"].get(scale_point, 0)
                     value = round(value / (10**exponent)) * (10**exponent)
             if model_id == 103 and name == "WH" and available:
+                value = round(value / 1000, 1)
+            if model_id == 203 and name in {"MTR_TotWhImp", "MTR_TotWhExp"} and available:
                 value = round(value / 1000, 1)
             model_points.append(
                 {

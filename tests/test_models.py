@@ -214,6 +214,12 @@ class RegisterMapTests(unittest.TestCase):
         self.assertEqual(mappings["fields"]["WH"]["scale"], 100)
         self.assertEqual(mappings["fields"]["MTR_W"]["address"], 5600)
         self.assertEqual(mappings["fields"]["MTR_W"]["invalid_values"], [2147483647])
+        self.assertEqual(mappings["fields"]["MTR_TotWhImp"]["address"], 13036)
+        self.assertEqual(mappings["fields"]["MTR_TotWhImp"]["scale"], 100)
+        self.assertEqual(mappings["fields"]["MTR_TotWhImp"]["word_order"], "swap")
+        self.assertEqual(mappings["fields"]["MTR_TotWhExp"]["address"], 13045)
+        self.assertEqual(mappings["fields"]["MTR_TotWhExp"]["scale"], 100)
+        self.assertEqual(mappings["fields"]["MTR_TotWhExp"]["word_order"], "swap")
 
     def test_community_profile_values_encode_at_documented_sunspec_points(self):
         profile_path = (
@@ -291,6 +297,63 @@ class RegisterMapTests(unittest.TestCase):
         self.assertEqual(
             registers[model_203_data + meter_offsets["MTR_W"]], 0xF63C
         )
+
+    def test_meter_model_exposes_total_grid_import_and_export_energy(self):
+        profile_path = (
+            Path(__file__).parents[1]
+            / "addon"
+            / "sungrow_sunspec"
+            / "profiles"
+            / "sh25t_shb.community.json"
+        )
+        mappings = load_register_map(profile_path)
+        meter_data = {
+            "MTR_TotWhImp": 1_234_500,
+            "MTR_TotWhExp": 987_600,
+        }
+        data = build_dashboard_data(
+            mappings, meter_data, updated_at="2025-01-01T00:00:00+00:00", error=False
+        )
+        meter = next(model for model in data["models"] if model["id"] == 203)
+        points = {point["name"]: point for point in meter["points"]}
+        self.assertEqual(
+            (
+                points["MTR_TotWhImp"]["label"],
+                points["MTR_TotWhImp"]["value"],
+                points["MTR_TotWhImp"]["unit"],
+            ),
+            ("Total grid import", 1234.5, "kWh"),
+        )
+        self.assertEqual(
+            (
+                points["MTR_TotWhExp"]["label"],
+                points["MTR_TotWhExp"]["value"],
+                points["MTR_TotWhExp"]["unit"],
+            ),
+            ("Total grid export", 987.6, "kWh"),
+        )
+
+        model_203_header = (
+            40000
+            + 4
+            + 66
+            + 2
+            + sum(point[1] for point in INVERTER_POINTS)
+            + 2
+            + sum(point[1] for point in STORAGE_POINTS)
+        )
+        model_203_data = model_203_header + 2
+        meter_offsets = {
+            point[0]: sum(item[1] for item in METER_POINTS[:index])
+            for index, point in enumerate(METER_POINTS)
+        }
+        registers = build_registers(mappings, meter_data)
+        for name, value in meter_data.items():
+            self.assertEqual(
+                (registers[model_203_data + meter_offsets[name]] << 16)
+                | registers[model_203_data + meter_offsets[name] + 1],
+                value,
+            )
 
 
 if __name__ == "__main__":
