@@ -7,9 +7,9 @@ WORKDIR /app
 COPY app/ /app/
 COPY profiles/ /app/profiles/
 COPY run.sh /run.sh
-RUN chmod a+x /run.sh \
+RUN apk add --no-cache su-exec \
+    && chmod a+x /run.sh \
     && addgroup -S app \
     && adduser -S -G app app
 
-USER app
 CMD ["/run.sh"]

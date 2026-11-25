@@ -3,6 +3,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "addon" / "sungrow_sunspec" / "app"))
 
@@ -27,16 +28,21 @@ class DashboardServerTests(unittest.TestCase):
                 }
             )
             state.update({"MTR_W": -425})
-            server = DashboardServer(
-                "127.0.0.1", 0, "127.0.0.1/32", state.snapshot
-            )
+            server = DashboardServer("127.0.0.1", 0, state.snapshot)
             await server.start()
             port = server.server.sockets[0].getsockname()[1]
             try:
-                page = await self.get_response(port, "/")
+                with patch("web.client_is_allowed", return_value=True):
+                    page = await self.get_response(port, "/")
                 self.assertIn(b"Live inverter, battery and grid measurements", page)
+                self.assertIn(b'href="style.css"', page)
 
-                response = await self.get_response(port, "/api/values")
+                with patch("web.client_is_allowed", return_value=True):
+                    response = await self.get_response(
+                        port,
+                        "/api/hassio_ingress/test-token/api/values",
+                        headers={"X-Ingress-Path": "/api/hassio_ingress/test-token/"},
+                    )
                 body = response.split(b"\r\n\r\n", 1)[1]
                 data = json.loads(body)
                 self.assertEqual(data["status"], "online")
@@ -53,17 +59,18 @@ class DashboardServerTests(unittest.TestCase):
 
     def test_rejects_clients_outside_allowlist(self):
         async def run_test():
-            server = DashboardServer("127.0.0.1", 0, "192.168.2.3/32", dict)
+            server = DashboardServer("127.0.0.1", 0, dict)
             await server.start()
             port = server.server.sockets[0].getsockname()[1]
             try:
-                reader, writer = await asyncio.open_connection("127.0.0.1", port)
-                try:
-                    with self.assertRaises(asyncio.IncompleteReadError):
-                        await asyncio.wait_for(reader.readexactly(1), timeout=1)
-                finally:
-                    writer.close()
-                    await writer.wait_closed()
+                with patch("web.client_is_allowed", return_value=False):
+                    reader, writer = await asyncio.open_connection("127.0.0.1", port)
+                    try:
+                        with self.assertRaises(asyncio.IncompleteReadError):
+                            await asyncio.wait_for(reader.readexactly(1), timeout=1)
+                    finally:
+                        writer.close()
+                        await writer.wait_closed()
             finally:
                 server.server.close()
                 await server.server.wait_closed()
@@ -71,10 +78,14 @@ class DashboardServerTests(unittest.TestCase):
         asyncio.run(run_test())
 
     @staticmethod
-    async def get_response(port, path):
+    async def get_response(port, path, headers=None):
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        extra_headers = "".join(
+            f"{name}: {value}\r\n" for name, value in (headers or {}).items()
+        )
         writer.write(
-            f"GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n".encode()
+            f"GET {path} HTTP/1.1\r\nHost: localhost\r\n{extra_headers}"
+            "Connection: close\r\n\r\n".encode()
         )
         await writer.drain()
         response = await reader.read()

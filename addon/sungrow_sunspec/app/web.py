@@ -13,6 +13,7 @@ from modbus import CLIENT_REQUEST_TIMEOUT, client_is_allowed, parse_allowed_clie
 from models import build_dashboard_data
 
 LOGGER = logging.getLogger("sungrow_sunspec.web")
+SUPERVISOR_CLIENTS = parse_allowed_clients("172.30.32.2/32")
 
 PAGE = """<!doctype html>
 <html lang="en">
@@ -21,8 +22,8 @@ PAGE = """<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102b3f">
   <title>Sungrow SunSpec</title>
-  <link rel="stylesheet" href="/style.css">
-  <script defer src="/app.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="app.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -141,7 +142,7 @@ function render(data) {
 
 async function refresh() {
   try {
-    const response = await fetch("/api/values", {cache: "no-store"});
+    const response = await fetch("api/values", {cache: "no-store"});
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     render(await response.json());
   } catch {
@@ -184,12 +185,10 @@ class DashboardServer:
         self,
         host: str,
         port: int,
-        allowed_clients: str,
         snapshot: Callable[[], dict[str, Any]],
     ):
         self.host = host
         self.port = port
-        self.allowed_clients = parse_allowed_clients(allowed_clients)
         self.snapshot = snapshot
         self.server: asyncio.AbstractServer | None = None
 
@@ -203,14 +202,27 @@ class DashboardServer:
     ) -> None:
         peer = writer.get_extra_info("peername")
         try:
-            if not client_is_allowed(peer, self.allowed_clients):
-                LOGGER.warning("Rejected unauthorized dashboard client %s", peer)
+            if not client_is_allowed(peer, SUPERVISOR_CLIENTS):
+                LOGGER.warning("Rejected non-Supervisor dashboard request from %s", peer)
                 return
             request = await asyncio.wait_for(
                 reader.readuntil(b"\r\n\r\n"), timeout=CLIENT_REQUEST_TIMEOUT
             )
-            request_line = request.split(b"\r\n", 1)[0].decode("ascii")
+            lines = request.split(b"\r\n")
+            request_line = lines[0].decode("ascii")
             method, path, version = request_line.split(" ", 2)
+            headers: dict[str, str] = {}
+            for line in lines[1:]:
+                if not line:
+                    break
+                key, value = line.decode("latin-1").split(":", 1)
+                headers[key.strip().lower()] = value.strip()
+            ingress_path = headers.get("x-ingress-path", "")
+            if ingress_path and path.startswith(ingress_path):
+                path = path[len(ingress_path) :]
+            path = path.split("?", 1)[0]
+            if not path.startswith("/"):
+                path = f"/{path}"
             if version not in {"HTTP/1.0", "HTTP/1.1"}:
                 await self._respond(writer, "400 Bad Request", b"Bad request", "text/plain")
             elif method != "GET":
@@ -253,9 +265,9 @@ class DashboardServer:
             f"Content-Length: {len(body)}\r\n"
             "Cache-Control: no-store\r\n"
             "X-Content-Type-Options: nosniff\r\n"
-            "X-Frame-Options: DENY\r\n"
             "Referrer-Policy: no-referrer\r\n"
-            "Content-Security-Policy: default-src 'self'; style-src 'self'; script-src 'self'\r\n"
+            "Content-Security-Policy: default-src 'self'; style-src 'self'; "
+            "script-src 'self'; frame-ancestors 'self'\r\n"
             "Connection: close\r\n\r\n"
         ).encode("ascii")
         writer.write(headers + body)

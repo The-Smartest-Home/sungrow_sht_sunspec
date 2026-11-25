@@ -2,29 +2,29 @@
 
 ## Setup
 
-Configure the inverter host, Modbus TCP port, unit ID, SunSpec port, web port,
-and register-map file before starting. The bundled SH25T/SHB profile is
-community-derived; validate it against your inverter and firmware before
-relying on its values.
+Configure the inverter host, Modbus TCP port, unit ID, SunSpec port, allowed
+SunSpec client addresses, and register-map file before starting. The bundled
+SH25T/SHB profile is community-derived; validate it against your inverter and
+firmware before relying on its values.
 
 The add-on exposes:
 
 - The read-only SunSpec Modbus TCP service on port `5020` by default, starting
   at register `40000`.
-- The read-only web dashboard at `http://<home-assistant-host>:8080` by
-  default. It refreshes every five seconds and shows inverter power, battery
-  charge, grid flow, model points, unavailable values, and the last successful
-  inverter update.
+- The read-only web dashboard through the add-on's **Open Web UI** button.
+  Home Assistant ingress handles authentication. It refreshes every five
+  seconds and shows inverter power, battery charge, grid flow, model points,
+  unavailable values, and the last successful inverter update.
 
 ## Network security
 
-Host networking is used so the add-on can reach the inverter and expose both
-services on the LAN. The `allowed_clients` option applies to both listeners
-and defaults to `127.0.0.1/32,::1/128`, so remote clients are denied until you
-configure access. Enter a comma-separated list of trusted IP addresses or
-CIDRs, for example `192.168.2.42/32,192.168.2.43/32`. Prefer exact client
-addresses. Do not expose the dashboard or SunSpec port to the internet; the
-dashboard uses plain HTTP.
+Home Assistant ingress authenticates dashboard requests. The dashboard web
+server accepts connections only from the Supervisor proxy at `172.30.32.2`.
+The `allowed_clients` option applies only to the SunSpec Modbus endpoint and
+defaults to `127.0.0.1/32,::1/128`; remote SunSpec clients are denied until
+you configure access. Enter a comma-separated list of trusted IP addresses
+or CIDRs, for example `192.168.2.42/32,192.168.2.43/32`. Prefer exact client
+addresses and do not expose the SunSpec port to the internet.
 
 The inverter connection is read-only. The add-on does not write to inverter
 registers or SunSpec control points.
@@ -46,8 +46,8 @@ and third-party license information are recorded in
 
 - Confirm the inverter's Modbus TCP service is enabled and reachable from the
   Home Assistant host.
-- If clients cannot connect, check `allowed_clients`, the selected ports, and
-  firewall rules on the Home Assistant host and LAN.
+- If SunSpec clients cannot connect, check `allowed_clients`, the selected
+  port, and firewall rules on the Home Assistant host and LAN.
 - If values show as unavailable, inspect the add-on log and verify that the
   configured profile matches the inverter and meter installation.
 

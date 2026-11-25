@@ -2,10 +2,11 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "addon" / "sungrow_sunspec" / "app"))
 
-from main import read_options, resolve_register_map_path
+from main import get_ingress_port, read_options, resolve_register_map_path
 
 
 class RegisterMapPathTests(unittest.TestCase):
@@ -61,7 +62,6 @@ class RegisterMapPathTests(unittest.TestCase):
             options_file.write_text(
                 '{"inverter_host":"192.168.1.2","inverter_port":true,'
                 '"unit_id":1,"refresh_interval":5,"sunspec_port":5020,'
-                '"web_port":8080,'
                 '"allowed_clients":"127.0.0.1/32",'
                 '"register_map_file":"/app/profiles/default.json"}',
                 encoding="utf-8",
@@ -69,6 +69,27 @@ class RegisterMapPathTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "inverter_port"):
                 read_options(options_file)
+
+    @patch("main.urllib.request.urlopen")
+    def test_get_ingress_port_uses_supervisor_info(self, urlopen):
+        with patch("main.json.load", return_value={"data": {"ingress_port": 63124}}):
+            self.assertEqual(
+                get_ingress_port("test-token", url="http://supervisor/addons/self/info"),
+                63124,
+            )
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.get_header("Authorization"), "Bearer test-token")
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 5)
+
+    def test_get_ingress_port_rejects_missing_token_and_invalid_response(self):
+        with patch.dict("os.environ", {}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "SUPERVISOR_TOKEN"):
+                get_ingress_port()
+        with patch("main.urllib.request.urlopen") as urlopen:
+            response = urlopen.return_value.__enter__.return_value
+            with patch("main.json.load", return_value={"data": {"ingress_port": 0}}):
+                with self.assertRaisesRegex(RuntimeError, "invalid ingress port"):
+                    get_ingress_port("test-token")
 
 
 if __name__ == "__main__":

@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import math
 import os
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -14,8 +15,9 @@ from modbus import ModbusClient, SunSpecServer, read_mapped_fields
 from models import build_registers, load_register_map
 from web import DashboardServer, DashboardState
 
-OPTIONS_PATH = Path("/data/options.json")
+OPTIONS_PATH = Path(os.environ.get("OPTIONS_PATH", "/data/options.json"))
 LOGGER = logging.getLogger("sungrow_sunspec")
+SUPERVISOR_URL = "http://supervisor/addons/self/info"
 
 
 def read_options(path: Path = OPTIONS_PATH) -> dict[str, Any]:
@@ -30,7 +32,6 @@ def read_options(path: Path = OPTIONS_PATH) -> dict[str, Any]:
         "unit_id": int,
         "refresh_interval": int,
         "sunspec_port": int,
-        "web_port": int,
         "allowed_clients": str,
         "register_map_file": str,
     }
@@ -42,8 +43,6 @@ def read_options(path: Path = OPTIONS_PATH) -> dict[str, Any]:
             expected_type is str and not value.strip()
         ):
             raise ValueError(f"Invalid or missing add-on option: {key}")
-    if options["sunspec_port"] == options["web_port"]:
-        raise ValueError("sunspec_port and web_port must be different")
     return options
 
 
@@ -59,6 +58,32 @@ def resolve_register_map_path(
     if not path.is_file():
         raise ValueError(f"Register map does not exist or is not a file: {path}")
     return path
+
+
+def get_ingress_port(
+    token: str | None = None,
+    *,
+    url: str = SUPERVISOR_URL,
+) -> int:
+    supervisor_token = token or os.environ.get("SUPERVISOR_TOKEN")
+    if not supervisor_token:
+        raise RuntimeError("SUPERVISOR_TOKEN is required to resolve the ingress port")
+    request = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {supervisor_token}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = json.load(response)
+    except (OSError, urllib.error.URLError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"Unable to resolve Home Assistant ingress port: {error}") from error
+    try:
+        port = payload["data"]["ingress_port"]
+    except (KeyError, TypeError) as error:
+        raise RuntimeError("Supervisor response does not contain an ingress port") from error
+    if type(port) is not int or not 1 <= port <= 65535:
+        raise RuntimeError(f"Supervisor returned an invalid ingress port: {port!r}")
+    return port
 
 
 async def poll_forever(
@@ -104,6 +129,10 @@ async def run() -> None:
             map_path,
         )
 
+    ingress_port = get_ingress_port()
+    if ingress_port == options["sunspec_port"]:
+        raise RuntimeError("The allocated ingress port conflicts with sunspec_port")
+
     dashboard_state = DashboardState(mappings)
     server = SunSpecServer(
         host="0.0.0.0",
@@ -118,12 +147,11 @@ async def run() -> None:
     )
     dashboard = DashboardServer(
         host="0.0.0.0",
-        port=options["web_port"],
-        allowed_clients=options["allowed_clients"],
+        port=ingress_port,
         snapshot=dashboard_state.snapshot,
     )
     await dashboard.start()
-    LOGGER.info("Read-only dashboard listening on port %d", options["web_port"])
+    LOGGER.info("Authenticated dashboard ingress listening on port %d", dashboard.port)
     await poll_forever(
         options=options,
         mappings=mappings,

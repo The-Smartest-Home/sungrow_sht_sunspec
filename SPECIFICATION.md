@@ -53,8 +53,10 @@ at revision `071f8c8c5f784198928f80de23ae168eed1acd1d`.
    points, availability, and last successful poll without retaining stale
    values after a failed poll.
 10. Restrict HTTP and SunSpec clients using the same configurable IP/CIDR
-    allowlist. The default permits loopback only; each listener must reject
-    unauthorized clients and bound idle request time.
+    policy. The dashboard must use Home Assistant ingress and accept requests
+    only from the Supervisor proxy; SunSpec defaults to loopback and uses the
+    configurable IP/CIDR allowlist. Both listeners must bound idle request
+    time.
 
 ## Initial point mapping
 
@@ -109,11 +111,13 @@ or writable storage controls from unrelated values.
 
 - The SunSpec endpoint is read-only, even for model 124 points defined as
   writable by SunSpec.
-- The dashboard is read-only and uses the same client allowlist as SunSpec.
+- The dashboard is read-only, authenticated through Home Assistant ingress,
+  and only accepts connections from the Supervisor proxy. It uses relative
+  resource URLs and respects the forwarded ingress path.
 - Do not write to inverter registers; do not enable public exposure of the
   dashboard or SunSpec endpoint. Restrict network reachability to trusted LAN
-  clients. The dashboard uses plain HTTP and is not suitable for public or
-  untrusted networks.
+  clients. Home Assistant ingress handles dashboard authentication; the
+  SunSpec endpoint is limited by the configured client allowlist.
 - A source field can be absent, unsupported, or invalid. Keep it not
   implemented and log actionable upstream errors; never substitute zero.
 - Verify address, register type, signedness, word order, scale, unit, sentinel
