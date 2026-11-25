@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.7]
+
+- Remove an unsupported capability declaration so Home Assistant can install
+  the add-on; document that the non-root service requires an unprivileged port.
+
 ## [0.3.6]
 
 - Allow the non-root SunSpec server to bind the standard Modbus port 502.

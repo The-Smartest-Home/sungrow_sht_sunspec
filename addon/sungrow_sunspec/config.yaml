@@ -1,5 +1,5 @@
 name: Sungrow SHx SunSpec bridge
-version: "0.3.6"
+version: "0.3.7"
 slug: sungrow_shx_sunspec
 description: Read Sungrow SH-series inverter data over Modbus TCP, expose SunSpec models, and show a live dashboard.
 url: https://github.com/The-Smartest-Home/sungrow_sht_sunspec
@@ -12,8 +12,6 @@ startup: services
 boot: auto
 init: false
 host_network: true
-privileged:
-  - NET_BIND_SERVICE
 ingress: true
 ingress_port: 0
 panel_icon: mdi:solar-power-variant

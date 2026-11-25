@@ -17,10 +17,10 @@ The add-on exposes:
   unavailable values, and the last successful inverter update. Lifetime PV
   generation is shown in kWh; the SunSpec model exposes it in Wh.
 
-To listen on the standard Modbus TCP port `502`, set `sunspec_port` to `502`.
-The add-on has only the `NET_BIND_SERVICE` capability needed for its
-non-root server process to bind ports below `1024`. If port `502` is already
-in use on the Home Assistant host, choose another available port.
+The add-on runs its Modbus service as a non-root user and Home Assistant does
+not permit the capability needed to bind ports below `1024`. Keep
+`sunspec_port` at `5020` or choose another unprivileged port; setting it to
+`502` will fail to bind.
 
 ## Network security
 

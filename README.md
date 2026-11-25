@@ -47,10 +47,9 @@ only loopback connections to the SunSpec endpoint; set it to the specific
 client addresses or trusted CIDRs that need access, for example
 `192.168.2.42/32,192.168.2.43/32`. Do not expose the SunSpec endpoint to the
 internet. The inverter's Modbus TCP service must be enabled and reachable from
-the Home Assistant host.
-To use the standard Modbus TCP port, set `sunspec_port` to `502`. The add-on
-has only the Linux `NET_BIND_SERVICE` capability needed to bind ports below
-`1024`; the default remains `5020`.
+the Home Assistant host. The add-on runs as a non-root user and supports
+unprivileged ports only; keep `sunspec_port` at its default `5020` or choose
+another port above `1023`. Port `502` cannot be bound by the add-on.
 
 The dashboard displays lifetime PV energy in kWh for readability. SunSpec
 model 103 exposes the same accumulated energy in Wh, as defined by the model.
