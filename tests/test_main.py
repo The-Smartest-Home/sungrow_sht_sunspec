@@ -70,6 +70,52 @@ class RegisterMapPathTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "inverter_port"):
                 read_options(options_file)
 
+    def test_read_options_defaults_and_parses_exposed_models(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            options_file = Path(temporary_directory) / "options.json"
+            options_file.write_text(
+                '{"inverter_host":"inverter.local","inverter_port":502,'
+                '"unit_id":1,"refresh_interval":5,'
+                '"allowed_clients":"127.0.0.1/32",'
+                '"register_map_file":"/app/profiles/default.json"}',
+                encoding="utf-8",
+            )
+            self.assertEqual(read_options(options_file)["exposed_models"], (103, 124, 203))
+
+            options_file.write_text(
+                '{"inverter_host":"inverter.local","inverter_port":502,'
+                '"unit_id":1,"refresh_interval":5,'
+                '"allowed_clients":"127.0.0.1/32",'
+                '"register_map_file":"/app/profiles/default.json",'
+                '"exposed_models":"203,103"}',
+                encoding="utf-8",
+            )
+            self.assertEqual(read_options(options_file)["exposed_models"], (103, 203))
+
+            options_file.write_text(
+                '{"inverter_host":"inverter.local","inverter_port":502,'
+                '"unit_id":1,"refresh_interval":5,'
+                '"allowed_clients":"127.0.0.1/32",'
+                '"register_map_file":"/app/profiles/default.json",'
+                '"exposed_models":""}',
+                encoding="utf-8",
+            )
+            self.assertEqual(read_options(options_file)["exposed_models"], ())
+
+    def test_read_options_rejects_unknown_exposed_models(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            options_file = Path(temporary_directory) / "options.json"
+            options_file.write_text(
+                '{"inverter_host":"inverter.local","inverter_port":502,'
+                '"unit_id":1,"refresh_interval":5,'
+                '"allowed_clients":"127.0.0.1/32",'
+                '"register_map_file":"/app/profiles/default.json",'
+                '"exposed_models":"103,999"}',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "exposed_models"):
+                read_options(options_file)
+
     @patch("main.urllib.request.urlopen")
     def test_get_ingress_port_uses_supervisor_info(self, urlopen):
         with patch("main.json.load", return_value={"data": {"ingress_port": 63124}}):

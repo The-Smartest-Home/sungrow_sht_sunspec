@@ -17,7 +17,7 @@ from modbus import (
     read_mapped_fields,
     read_sunspec_common,
 )
-from models import build_registers, load_register_map
+from models import build_registers, load_register_map, parse_exposed_models
 from web import DashboardServer, DashboardState
 
 OPTIONS_PATH = Path(os.environ.get("OPTIONS_PATH", "/data/options.json"))
@@ -48,6 +48,9 @@ def read_options(path: Path = OPTIONS_PATH) -> dict[str, Any]:
             expected_type is str and not value.strip()
         ):
             raise ValueError(f"Invalid or missing add-on option: {key}")
+    options["exposed_models"] = parse_exposed_models(
+        options.get("exposed_models", "103,124,203")
+    )
     return options
 
 
@@ -123,11 +126,22 @@ async def poll_forever(
                         LOGGER.debug(
                             "Inverter SunSpec Common model not found; using profile defaults"
                         )
-            server.update(build_registers(mappings, values, common_values=common_values))
+            server.update(
+                build_registers(
+                    mappings,
+                    values,
+                    common_values=common_values,
+                    exposed_models=options["exposed_models"],
+                )
+            )
             dashboard_state.update(values, common_values=common_values)
             LOGGER.info("Updated %d mapped SunSpec points", len(values))
         except (OSError, asyncio.TimeoutError, ValueError) as error:
-            server.update(build_registers(mappings, {}))
+            server.update(
+                build_registers(
+                    mappings, {}, exposed_models=options["exposed_models"]
+                )
+            )
             dashboard_state.update({}, error=True)
             LOGGER.error("Inverter poll failed; mapped points marked unavailable: %s", error)
         await asyncio.sleep(options["refresh_interval"])
@@ -156,7 +170,9 @@ async def run() -> None:
     server = SunSpecServer(
         host="0.0.0.0",
         port=SUNSPEC_PORT,
-        register_map=build_registers(mappings, {}),
+        register_map=build_registers(
+            mappings, {}, exposed_models=options["exposed_models"]
+        ),
         allowed_clients=options["allowed_clients"],
         upstream_host=options["inverter_host"],
         upstream_port=options["inverter_port"],

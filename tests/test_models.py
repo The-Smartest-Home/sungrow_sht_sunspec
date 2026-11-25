@@ -173,6 +173,17 @@ class RegisterMapTests(unittest.TestCase):
         self.assertEqual(registers[max(registers)], 0xFFFF)
         self.assertEqual(sum(point[1] for point in STORAGE_POINTS), 24)
 
+    def test_selected_model_is_exposed_after_common_model(self):
+        registers = build_registers(empty_map(), {}, exposed_models=(124,))
+        self.assertEqual((registers[40070], registers[40071]), (124, 24))
+        self.assertEqual(registers[40096], 0xFFFF)
+        self.assertEqual(len(registers), 97)
+
+    def test_invalid_exposed_model_selection_is_rejected(self):
+        for selected in ((999,), (103, 103), (True,)):
+            with self.subTest(selected=selected), self.assertRaises(ValueError):
+                build_registers(empty_map(), {}, exposed_models=selected)
+
     def test_mapped_points_are_scaled_and_unmapped_are_sentinel(self):
         mappings = empty_map()
         mappings["scale_factors"] = {"W_SF": -1}

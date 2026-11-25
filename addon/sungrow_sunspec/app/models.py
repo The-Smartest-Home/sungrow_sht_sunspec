@@ -169,6 +169,7 @@ MODEL_POINTS = (
     (124, "Storage", STORAGE_POINTS),
     (203, "Meter", METER_POINTS),
 )
+EXPOSED_SUNSPEC_MODELS = (103, 124, 203)
 POINT_LABELS = {
     (103, "W"): ("AC active power", "W"),
     (103, "Hz"): ("Grid frequency", "Hz"),
@@ -240,6 +241,25 @@ SOURCE_TYPES = {
     "uint32": (2, False),
     "int32": (2, True),
 }
+
+
+def parse_exposed_models(value: str) -> tuple[int, ...]:
+    if not isinstance(value, str):
+        raise ValueError("exposed_models must be a comma-separated string")
+    if not value.strip():
+        return ()
+    try:
+        selected = tuple(int(item.strip()) for item in value.split(","))
+    except ValueError as error:
+        raise ValueError("exposed_models must contain model IDs 103, 124, or 203") from error
+    if (
+        any(model_id not in EXPOSED_SUNSPEC_MODELS for model_id in selected)
+        or len(selected) != len(set(selected))
+    ):
+        raise ValueError(
+            "exposed_models may contain each of 103, 124, and 203 at most once"
+        )
+    return tuple(model_id for model_id in EXPOSED_SUNSPEC_MODELS if model_id in selected)
 
 
 def load_register_map(path: Path) -> dict[str, Any]:
@@ -372,8 +392,18 @@ def build_registers(
     source_values: dict[str, int | float],
     base_address: int = 40000,
     common_values: dict[str, str | int] | None = None,
+    exposed_models: tuple[int, ...] | None = None,
 ) -> dict[int, int]:
     """Build SunSpec Common, three-phase inverter, and storage model registers."""
+    if exposed_models is not None and (
+        any(
+            type(model_id) is not int or model_id not in EXPOSED_SUNSPEC_MODELS
+            for model_id in exposed_models
+        )
+        or len(exposed_models) != len(set(exposed_models))
+    ):
+        raise ValueError("exposed_models may contain each of 103, 124, and 203 at most once")
+
     data: list[int] = [0x5375, 0x6E53]
     data.extend((1, 66))
     common = mappings["common"]
@@ -395,6 +425,8 @@ def build_registers(
         (124, STORAGE_POINTS),
         (203, METER_POINTS),
     ):
+        if exposed_models is not None and model_id not in exposed_models:
+            continue
         data.extend((model_id, sum(point[1] for point in points)))
         for name, width, kind, scale_point in points:
             if kind == "sunssf":

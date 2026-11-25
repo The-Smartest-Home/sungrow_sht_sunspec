@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.10]
+
+- Allow selecting which synthesized SunSpec models are exposed.
+
 ## [0.3.9]
 
 - Keep the synthesized SunSpec register block local and proxy other read
