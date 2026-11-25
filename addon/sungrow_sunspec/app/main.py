@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from modbus import (
-    ModbusClient,
     SunSpecServer,
     read_mapped_fields,
     read_sunspec_common,
@@ -103,31 +102,29 @@ async def poll_forever(
     server: SunSpecServer,
     dashboard_state: DashboardState,
 ) -> None:
+    client = server.upstream_client
+    if client is None:
+        raise RuntimeError("The inverter Modbus client is not configured")
     while True:
         try:
-            async with ModbusClient(
-                options["inverter_host"],
-                options["inverter_port"],
-                options["unit_id"],
-            ) as client:
-                values = (
-                    await read_mapped_fields(client, mappings["fields"])
-                    if mappings["fields"]
-                    else {}
+            values = (
+                await read_mapped_fields(client, mappings["fields"])
+                if mappings["fields"]
+                else {}
+            )
+            try:
+                common_values = await read_sunspec_common(client)
+            except (OSError, asyncio.TimeoutError, ValueError) as error:
+                common_values = {}
+                LOGGER.debug(
+                    "Inverter SunSpec Common model unavailable; using profile defaults: %s",
+                    error,
                 )
-                try:
-                    common_values = await read_sunspec_common(client)
-                except (OSError, asyncio.TimeoutError, ValueError) as error:
-                    common_values = {}
+            else:
+                if not common_values:
                     LOGGER.debug(
-                        "Inverter SunSpec Common model unavailable; using profile defaults: %s",
-                        error,
+                        "Inverter SunSpec Common model not found; using profile defaults"
                     )
-                else:
-                    if not common_values:
-                        LOGGER.debug(
-                            "Inverter SunSpec Common model not found; using profile defaults"
-                        )
             server.update(
                 build_registers(
                     mappings,
@@ -197,12 +194,15 @@ async def run() -> None:
     )
     await dashboard.start()
     LOGGER.info("Authenticated dashboard ingress listening on port %d", dashboard.port)
-    await poll_forever(
-        options=options,
-        mappings=mappings,
-        server=server,
-        dashboard_state=dashboard_state,
-    )
+    try:
+        await poll_forever(
+            options=options,
+            mappings=mappings,
+            server=server,
+            dashboard_state=dashboard_state,
+        )
+    finally:
+        await server.close()
 
 
 def main() -> None:

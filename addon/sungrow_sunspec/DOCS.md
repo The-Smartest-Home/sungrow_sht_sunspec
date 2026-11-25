@@ -47,7 +47,10 @@ or CIDRs, for example `192.168.2.42/32,192.168.2.43/32`. Prefer exact client
 addresses and do not expose the SunSpec port to the internet.
 
 The inverter connection is read-only. The add-on does not write to inverter
-registers or SunSpec control points.
+registers or SunSpec control points. Polling and proxied reads share one
+persistent upstream Modbus TCP connection, and upstream requests are
+serialized so concurrent clients do not issue overlapping requests to the
+inverter.
 
 ## Register map
 

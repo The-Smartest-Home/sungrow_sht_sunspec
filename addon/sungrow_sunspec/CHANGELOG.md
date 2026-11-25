@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.15]
+
+- Share one serialized upstream Modbus connection between polling and proxy reads.
+
 ## [0.3.14]
 
 - Make forwarded-read requester details configurable with Debug logging.

@@ -106,8 +106,59 @@ class ModbusClient:
         return list(struct.unpack(f">{count}H", response[2:]))
 
 
+class SharedModbusClient:
+    """Serialize all upstream reads over one reusable Modbus TCP connection."""
+
+    def __init__(
+        self, host: str, port: int, unit_id: int, timeout: float = 3.0
+    ):
+        self.host = host
+        self.port = port
+        self.unit_id = unit_id
+        self.timeout = timeout
+        self._client: ModbusClient | None = None
+        self._lock = asyncio.Lock()
+
+    async def read_registers(
+        self, register_type: str, address: int, count: int
+    ) -> list[int]:
+        async with self._lock:
+            if self._client is None:
+                self._client = ModbusClient(
+                    self.host, self.port, self.unit_id, timeout=self.timeout
+                )
+                try:
+                    await self._client.__aenter__()
+                except (OSError, asyncio.TimeoutError):
+                    self._client = None
+                    raise
+            try:
+                return await self._client.read_registers(register_type, address, count)
+            except ModbusExceptionError:
+                raise
+            except (
+                OSError,
+                asyncio.TimeoutError,
+                ValueError,
+                asyncio.IncompleteReadError,
+            ) as error:
+                await self._close_client()
+                if isinstance(error, asyncio.IncompleteReadError):
+                    raise OSError("Upstream Modbus connection closed unexpectedly") from error
+                raise
+
+    async def _close_client(self) -> None:
+        client, self._client = self._client, None
+        if client is not None:
+            await client.__aexit__()
+
+    async def close(self) -> None:
+        async with self._lock:
+            await self._close_client()
+
+
 async def read_mapped_fields(
-    client: ModbusClient, fields: dict[str, dict[str, Any]]
+    client: ModbusClient | SharedModbusClient, fields: dict[str, dict[str, Any]]
 ) -> dict[str, int | float]:
     grouped: dict[str, list[tuple[int, int, str]]] = defaultdict(list)
     for name, source in fields.items():
@@ -147,7 +198,9 @@ async def read_mapped_fields(
     return values
 
 
-async def read_sunspec_common(client: ModbusClient) -> dict[str, str | int]:
+async def read_sunspec_common(
+    client: ModbusClient | SharedModbusClient,
+) -> dict[str, str | int]:
     """Read available fields from the inverter's standard Common model at 40000."""
     registers = await client.read_registers("holding", 40000, 70)
     if registers[:4] != [0x5375, 0x6E53, 1, 66]:
@@ -208,6 +261,7 @@ class SunSpecServer:
         upstream_port: int = 502,
         upstream_unit_id: int = 1,
         debug_logging: bool = False,
+        upstream_client: SharedModbusClient | None = None,
     ):
         self.host = host
         self.port = port
@@ -217,6 +271,11 @@ class SunSpecServer:
         self.upstream_port = upstream_port
         self.upstream_unit_id = upstream_unit_id
         self.debug_logging = debug_logging
+        self.upstream_client = upstream_client or (
+            SharedModbusClient(upstream_host, upstream_port, upstream_unit_id)
+            if upstream_host is not None
+            else None
+        )
         self.server: asyncio.AbstractServer | None = None
 
     def update(self, register_map: dict[int, int]) -> None:
@@ -253,7 +312,7 @@ class SunSpecServer:
                 if segment[0] & 0x80:
                     return segment
                 words.extend(struct.unpack(f">{segment_count}H", segment[2:]))
-            elif self.upstream_host is not None:
+            elif self.upstream_client is not None:
                 if self.debug_logging:
                     LOGGER.debug(
                         "Proxying Modbus read from %s: function=%d address=%d count=%d",
@@ -263,29 +322,24 @@ class SunSpecServer:
                         segment_count,
                     )
                 try:
-                    async with ModbusClient(
-                        self.upstream_host,
-                        self.upstream_port,
-                        self.upstream_unit_id,
-                    ) as client:
-                        words.extend(
-                            await client.read_registers(
-                                "holding" if function == 3 else "input",
-                                cursor,
-                                segment_count,
-                            )
+                    words.extend(
+                        await self.upstream_client.read_registers(
+                            "holding" if function == 3 else "input",
+                            cursor,
+                            segment_count,
                         )
+                    )
                 except ModbusExceptionError as error:
-                        if self.debug_logging:
-                            LOGGER.debug(
-                                "Upstream rejected Modbus read from %s at address %d "
-                                "(%d registers): exception %d",
-                                peer,
-                                cursor,
-                                segment_count,
-                                error.exception_code,
-                            )
-                        return bytes((function | 0x80, error.exception_code))
+                    if self.debug_logging:
+                        LOGGER.debug(
+                            "Upstream rejected Modbus read from %s at address %d "
+                            "(%d registers): exception %d",
+                            peer,
+                            cursor,
+                            segment_count,
+                            error.exception_code,
+                        )
+                    return bytes((function | 0x80, error.exception_code))
                 except (OSError, asyncio.TimeoutError, ValueError) as error:
                     LOGGER.warning(
                         "Unable to proxy Modbus read from %s at address %d "
@@ -301,6 +355,13 @@ class SunSpecServer:
             cursor = segment_end
 
         return bytes((function, count * 2)) + struct.pack(f">{count}H", *words)
+
+    async def close(self) -> None:
+        if self.server is not None:
+            self.server.close()
+            await self.server.wait_closed()
+        if self.upstream_client is not None:
+            await self.upstream_client.close()
 
     async def start(self) -> None:
         self.server = await asyncio.start_server(self._client_connected, self.host, self.port)

@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "addon" / "sungrow_sunspec" /
 from modbus import (
     ModbusClient,
     ModbusExceptionError,
+    SharedModbusClient,
     SunSpecServer,
     handle_request,
     parse_allowed_clients,
@@ -206,27 +207,33 @@ class ModbusRequestTests(unittest.TestCase):
     def test_sunspec_server_proxies_non_sunspec_reads_and_mixes_boundary_reads(self):
         async def run_test():
             upstream_requests = []
+            upstream_connections = 0
 
             async def upstream_client(reader, writer):
+                nonlocal upstream_connections
+                upstream_connections += 1
                 try:
-                    header = await reader.readexactly(7)
-                    transaction, protocol, length, unit = struct.unpack(">HHHB", header)
-                    function, address, count = struct.unpack(
-                        ">BHH", await reader.readexactly(length - 1)
-                    )
-                    upstream_requests.append((function, address, count, unit))
-                    values = [
-                        0xABCD if address + index == 39999 else 0x1234
-                        for index in range(count)
-                    ]
-                    response = bytes((function, count * 2)) + struct.pack(
-                        f">{count}H", *values
-                    )
-                    writer.write(
-                        struct.pack(">HHHB", transaction, protocol, len(response) + 1, unit)
-                        + response
-                    )
-                    await writer.drain()
+                    while True:
+                        header = await reader.readexactly(7)
+                        transaction, protocol, length, unit = struct.unpack(">HHHB", header)
+                        function, address, count = struct.unpack(
+                            ">BHH", await reader.readexactly(length - 1)
+                        )
+                        upstream_requests.append((function, address, count, unit))
+                        values = [
+                            0xABCD if address + index == 39999 else 0x1234
+                            for index in range(count)
+                        ]
+                        response = bytes((function, count * 2)) + struct.pack(
+                            f">{count}H", *values
+                        )
+                        writer.write(
+                            struct.pack(">HHHB", transaction, protocol, len(response) + 1, unit)
+                            + response
+                        )
+                        await writer.drain()
+                except asyncio.IncompleteReadError:
+                    pass
                 finally:
                     writer.close()
                     await writer.wait_closed()
@@ -259,9 +266,64 @@ class ModbusRequestTests(unittest.TestCase):
                     upstream_requests,
                     [(4, 13007, 1, 7), (3, 39999, 1, 7)],
                 )
+                self.assertEqual(upstream_connections, 1)
             finally:
-                proxy.server.close()
-                await proxy.server.wait_closed()
+                await proxy.close()
+                upstream.close()
+                await upstream.wait_closed()
+
+        asyncio.run(run_test())
+
+    def test_shared_upstream_client_serializes_reads_on_one_connection(self):
+        async def run_test():
+            connection_count = 0
+            active_requests = 0
+            maximum_active_requests = 0
+
+            async def upstream_client(reader, writer):
+                nonlocal connection_count, active_requests, maximum_active_requests
+                connection_count += 1
+                try:
+                    while True:
+                        header = await reader.readexactly(7)
+                        transaction, protocol, length, unit = struct.unpack(">HHHB", header)
+                        function, address, count = struct.unpack(
+                            ">BHH", await reader.readexactly(length - 1)
+                        )
+                        active_requests += 1
+                        maximum_active_requests = max(
+                            maximum_active_requests, active_requests
+                        )
+                        await asyncio.sleep(0.01)
+                        response = bytes((function, count * 2)) + struct.pack(
+                            f">{count}H", address
+                        )
+                        writer.write(
+                            struct.pack(">HHHB", transaction, protocol, len(response) + 1, unit)
+                            + response
+                        )
+                        await writer.drain()
+                        active_requests -= 1
+                except asyncio.IncompleteReadError:
+                    pass
+                finally:
+                    writer.close()
+                    await writer.wait_closed()
+
+            upstream = await asyncio.start_server(upstream_client, "127.0.0.1", 0)
+            upstream_port = upstream.sockets[0].getsockname()[1]
+            client = SharedModbusClient("127.0.0.1", upstream_port, 1)
+            try:
+                results = await asyncio.gather(
+                    client.read_registers("input", 10, 1),
+                    client.read_registers("input", 20, 1),
+                    client.read_registers("holding", 30, 1),
+                )
+                self.assertEqual(results, [[10], [20], [30]])
+                self.assertEqual(connection_count, 1)
+                self.assertEqual(maximum_active_requests, 1)
+            finally:
+                await client.close()
                 upstream.close()
                 await upstream.wait_closed()
 
@@ -303,8 +365,7 @@ class ModbusRequestTests(unittest.TestCase):
                             await client.read_registers("input", 0, 1)
                 self.assertEqual(error.exception.exception_code, 4)
             finally:
-                proxy.server.close()
-                await proxy.server.wait_closed()
+                await proxy.close()
                 upstream.close()
                 await upstream.wait_closed()
 
